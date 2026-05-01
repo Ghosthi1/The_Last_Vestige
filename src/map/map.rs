@@ -13,16 +13,26 @@ pub enum TileType {
 /// The data attached to a single tile on the map
 #[derive(Default, Clone)]
 pub struct TileData{
-    tile_type: TileType,
+    pub tile_type: TileType,
     passable: bool,
+}
+
+impl TileType {
+    pub fn texture_index(&self) -> u32 {
+        match self {
+            TileType::Floor => 0,
+            TileType::Wall => 1,
+            TileType::Door {..} => 2, // ".." I dont care whats in door
+        }
+    }
 }
 
 /// The entire game map, Owns all the tile data as a flat array, and the dimensions to convert grid coordinates into array positions
 #[derive(Resource)]
 pub struct Map{
     data: Vec<TileData>,
-    width: u32,
-    height: u32,
+    pub width: u32,
+    pub height: u32,
 }
 
 impl Map{

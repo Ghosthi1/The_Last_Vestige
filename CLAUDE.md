@@ -31,10 +31,15 @@ Files have specific, focused responsibilities — keep things clean and tidy. On
 src/
   main.rs          # App entry point, startup systems
   map/
-    mod.rs         # Declares submodules, re-exports Map, TileData, TileType
+    mod.rs         # Declares submodules, re-exports Map, TileData, TileType, MapRendererPlugin
     map.rs         # TileType, TileData, Map struct and constructor — no generation logic
-    map_gen.rs     # Map generation logic (not yet created)
+    map_gen.rs     # Map generation logic
+    map_renderer.rs # Spawns and manages bevy_ecs_tilemap entities from Map resource
 ```
+
+### Assets
+
+- `assets/PlaceHolder_tileset1.png` — spritesheet, three 16×16 tiles: floor (0), wall (1), door (2). `TILE_SIZE = 16.0` in `map_renderer.rs`
 
 ## Architecture Decisions
 
