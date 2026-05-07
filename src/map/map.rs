@@ -14,7 +14,6 @@ pub enum TileType {
 #[derive(Default, Clone)]
 pub struct TileData{
     pub tile_type: TileType,
-    pub passable: bool,
 }
 
 impl TileType {

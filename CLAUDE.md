@@ -35,6 +35,9 @@ src/
     map.rs         # TileType, TileData, Map struct and constructor — no generation logic
     map_gen.rs     # Map generation logic
     map_renderer.rs # Spawns and manages bevy_ecs_tilemap entities from Map resource
+  ai/
+    mod.rs         # Declares submodules
+    a_star.rs      # find_path(map, start, goal) — returns Option<Vec<(u32,u32)>>, 8-directional
 ```
 
 ### Assets
@@ -42,6 +45,14 @@ src/
 - `assets/PlaceHolder_tileset1.png` — spritesheet, three 16×16 tiles: floor (0), wall (1), door (2). `TILE_SIZE = 16.0` in `map_renderer.rs`
 
 ## Architecture Decisions
+
+### Pathfinding
+
+- **A\* implementation** lives in `ai/a_star.rs` — `find_path` takes a `&Map`, start, and goal as `(u32, u32)` grid coords, returns `Option<Vec<(u32, u32)>>`
+- **8-directional movement** with Chebyshev heuristic (`max(dx, dy)`)
+- **Passability** is derived from `TileType` via `is_passable()` — no separate field, so it's always in sync with tile state
+- **Lazy deletion** pattern for the open set — duplicate nodes are allowed in the heap, skipped via `closed_set`; `g_scores` prevents `came_from` being overwritten by worse paths
+- **Uniform movement cost** — all moves (cardinal and diagonal) cost 1; diagonals are not penalised. This keeps the heuristic admissible with Chebyshev distance and is intentional for a grid colony sim
 
 ### Tile System
 
