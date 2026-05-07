@@ -14,10 +14,11 @@ pub enum TileType {
 #[derive(Default, Clone)]
 pub struct TileData{
     pub tile_type: TileType,
-    passable: bool,
+    pub passable: bool,
 }
 
 impl TileType {
+    /// Gives an index for the tile sheet to assign textures
     pub fn texture_index(&self) -> u32 {
         match self {
             TileType::Floor => 0,
@@ -25,6 +26,18 @@ impl TileType {
             TileType::Door {..} => 2, // ".." I dont care whats in door
         }
     }
+    /// Determines if a tile is passable based on ots type
+    pub fn is_passable(&self) -> bool {
+        match self {
+            TileType::Floor => true,
+            TileType::Wall => false,
+            TileType::Door { is_open } => *is_open,
+        }
+    }
+}
+/// Used to Ask TileType if its passable
+impl TileData {
+    pub fn is_passable(&self) -> bool { self.tile_type.is_passable() }
 }
 
 /// The entire game map, Owns all the tile data as a flat array, and the dimensions to convert grid coordinates into array positions
