@@ -30,7 +30,7 @@ impl PartialOrd for Node {
 
 /// Estimates the minimum possible distance between two grid positions, assuming no walls. Using Chebyshev distance.
 fn heuristic(a: (u32, u32), b: (u32, u32)) -> u32 {
-    max( a.0.abs_diff(b.0),  a.1.abs_diff(b.1))
+    max( a.0.abs_diff(b.0),  a.1.abs_diff(b.1)) * 10
 }
 
 /// finds the best path between two points using A*
@@ -44,7 +44,7 @@ pub fn find_path(map: &Map, start:(u32, u32), goal:(u32, u32)) -> Option<Vec<(u3
 
     let mut open_set = BinaryHeap::new();     // The frontier: nodes discovered but not yet fully evaluated
     let mut closed_set =  vec![false; (map.width * map.height) as usize];     // Nodes fully processed (their path is confirmed)
-    let mut came_from = vec![u32::MAX; (map.width * map.height) as usize]     ;  // The path taken, used to remake the route by working backwards
+    let mut came_from = vec![u32::MAX; (map.width * map.height) as usize];  // The path taken, used to remake the route by working backwards
     let mut g_scores = vec![u32::MAX; (map.width * map.height) as usize];    // The best known cost to reach each position
 
     const OFFSETS: [(i32, i32); 8] =[(-1, -1), (0, -1), (1, -1), (-1, 0), (1, 0), (-1, 1), (0, 1), (1, 1)];
@@ -94,7 +94,8 @@ pub fn find_path(map: &Map, start:(u32, u32), goal:(u32, u32)) -> Option<Vec<(u3
 
             if  closed_set[neighbour_idx]|| !map.get(pos.0, pos.1).is_passable() {continue}
 
-            let tentative_g = node.g + 1; // Cost to reach neighbour from current node
+            let move_cost = if *dx != 0 && *dy != 0 { 14 } else { 10 };
+            let tentative_g = node.g + move_cost; // Cost to reach neighbor from current node
 
             // treats the unseen nodes as cost infinity
             if tentative_g <  g_scores[neighbour_idx]   {

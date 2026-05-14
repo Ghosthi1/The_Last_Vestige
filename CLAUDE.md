@@ -39,6 +39,9 @@ src/
     mod.rs         # Declares submodules
     a_star.rs      # find_path(map, start, goal) — returns Option<Vec<(u32,u32)>>, 8-directional
     flow_fields.rs # FlowLayer enum, FlowField struct (per-layer BFS data), FlowFields resource (HashMap of layers)
+  character/
+    mod.rs         # Declares submodules, re-exports GridPosition, Path, Speed, CharacterPlugin
+    characters.rs  # GridPosition, Path, Speed components; CharacterPlugin; spawn, movement, and click-to-move systems
 ```
 
 ### Assets
@@ -53,12 +56,19 @@ src/
 - **8-directional movement** with Chebyshev heuristic (`max(dx, dy)`)
 - **Passability** is derived from `TileType` via `is_passable()` — no separate field, so it's always in sync with tile state
 - **Lazy deletion** pattern for the open set — duplicate nodes are allowed in the heap, skipped via `closed_set`; `g_scores` prevents `came_from` being overwritten by worse paths
-- **Uniform movement cost** — all moves (cardinal and diagonal) cost 1; diagonals are not penalised. This keeps the heuristic admissible with Chebyshev distance and is intentional for a grid colony sim
+- **Non-uniform movement cost** — cardinal moves cost 10, diagonal moves cost 14 (approximating √2 × 10); this naturally produces visually direct paths by making unnecessary diagonals more expensive. Heuristic is scaled by 10 to remain admissible.
 - **Tie-breaking by `h`** — when two nodes share the same `f` score, the one closer to the goal (lower `h`) is preferred; keeps the search greedy in tie cases and reduces nodes explored on open maps
 - **Flat `Vec` arrays** replace HashMaps for `g_scores`, `closed_set`, and `came_from` — indexed by `x + y * width`; avoids hashing overhead and improves cache locality
 - **`came_from` stores packed `u32` indices** rather than `(u32, u32)` tuples — unpack with `index % width` for x and `index / width` for y; sentinel value `u32::MAX` means no parent set
 - **`f` is precomputed** on `Node` construction and stored as a field — avoids recomputing `g + h` on every heap comparison; `h` is also bound to a local before each `push` so `heuristic` is never called twice for the same node
 - **`find_path` validates inputs upfront** — returns `None` immediately if start or goal are out of bounds, or if the goal tile is impassable; the expensive search is never started in those cases
+
+### Characters
+
+- **Components:** `GridPosition(u32, u32)` — authoritative grid position; `Path(VecDeque<(u32,u32)>)` — remaining waypoints; `Speed(f32)` — movement speed in tiles per second
+- **Smooth movement:** `move_character` advances `Transform` toward the next waypoint each frame using `move_towards(target, speed * delta_secs)`; `GridPosition` is only updated when the character arrives at a waypoint (distance < 0.1)
+- **Click-to-move:** `move_to_click` converts cursor window position → world position via `camera.viewport_to_world_2d`, then applies the tilemap centering offset to get grid coordinates, then calls `find_path`
+- **Tilemap offset:** the tilemap is centered on screen — tile world position = `tile_coord * 16 - map_size * 8`; all coordinate conversions must account for this
 
 ### Tile System
 

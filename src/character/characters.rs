@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use std::collections::VecDeque;
+use bevy::window::PrimaryWindow;
 use crate::map::Map;
 use crate::ai::a_star::find_path;
 
@@ -20,30 +21,41 @@ pub struct CharacterPlugin;
 impl Plugin for CharacterPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, spawn_character);
-        app.add_systems(Update, move_character);
+        app.add_systems(Update, (move_character, move_to_click));
     }
 }
 
+/// Spawns a character with GridPosition, Path and Speed components
 fn spawn_character(mut commands: Commands, map: Res<Map>) {
     let path = find_path(&map, (1,1),(10,10)).unwrap_or_default().into_iter().collect();
 
     commands.spawn((
         GridPosition((1,1)),
         Path(path),
-        Speed(20.0),
+        Speed(50.0),
         Sprite {
             color: Color::srgb(1.0,0.0,0.0),
             custom_size: Some(Vec2::splat(16.0)),
             ..default()
             },
-        Transform::from_xyz(16.0,16.0,1.0),
-));}
+        Transform::from_xyz(
+            // offset by half map size to match the centred tilemap origin
+            1.0 * 16.0 - map.width as f32 * 8.0,
+            1.0 * 16.0 - map.height as f32 * 8.0,
+            1.0
+        )
+    ));}
 
-fn move_character (time: Res<Time>, mut query: Query<(&mut GridPosition, &mut Path, &mut Transform, &Speed)>) {
+/// Moves towards the next waypoint in the path smoothly each frame
+fn move_character (time: Res<Time>,map: Res<Map>, mut query: Query<(&mut GridPosition, &mut Path, &mut Transform, &Speed)>) {
     for (mut grid_pos, mut path, mut transform, speed) in query.iter_mut() {
         let Some(next) = path.0.front() else { continue };
 
-        let target = Vec3::new(next.0 as f32 * 16.0, next.1 as f32 * 16.0, 1.0);
+        let target =   Vec3::new(
+            next.0 as f32 * 16.0 - map.width as f32 * 8.0,
+            next.1 as f32 * 16.0 - map.height as f32 * 8.0,
+            1.0
+        );
 
         transform.translation = transform.translation.move_towards(target, speed.0 * time.delta_secs());
 
@@ -52,5 +64,30 @@ fn move_character (time: Res<Time>, mut query: Query<(&mut GridPosition, &mut Pa
             grid_pos.0 = *next;
             path.0.pop_front();
         }
+    }
+}
+
+/// Gets the clicked tile and sets the characters path to that
+fn move_to_click(mouse: Res<ButtonInput<MouseButton>>,
+                 window: Query<&Window, With<PrimaryWindow>>,
+                 camera: Query<(&Camera, &GlobalTransform)>,
+                 map: Res<Map>,
+                 mut characters: Query<(&GridPosition, &mut Path)> )
+{
+    if !mouse.just_pressed(MouseButton::Left) {return}
+    let Ok(window) = window.single() else {return};
+    let Some(cursor_pos) = window.cursor_position() else {return};
+    let Ok((camera, camera_transform)) = camera.single() else { return; };
+    let Ok(world_pos) = camera.viewport_to_world_2d(camera_transform, cursor_pos) else { return; };
+
+    // add half map size to convert from centred world space back to grid coordinates
+    let goal_x = ((world_pos.x + map.width as f32 * 8.0) / 16.0) as u32;
+    let goal_y = ((world_pos.y + map.height as f32 * 8.0) / 16.0) as u32;
+    let goal = (goal_x, goal_y);
+
+
+    for (grid_pos, mut path) in characters.iter_mut() {
+        let new_path = find_path(&map, grid_pos.0, goal).unwrap_or_default().into_iter().collect();
+        path.0 = new_path;
     }
 }
