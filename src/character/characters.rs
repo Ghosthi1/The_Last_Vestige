@@ -21,17 +21,16 @@ pub struct CharacterPlugin;
 impl Plugin for CharacterPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, spawn_character);
-        app.add_systems(Update, (move_character, move_to_click));
+        app.add_systems(Update, (move_to_click,move_character ).chain());
     }
 }
 
 /// Spawns a character with GridPosition, Path and Speed components
 fn spawn_character(mut commands: Commands, map: Res<Map>) {
-    let path = find_path(&map, (1,1),(10,10)).unwrap_or_default().into_iter().collect();
 
     commands.spawn((
         GridPosition((1,1)),
-        Path(path),
+        Path(VecDeque::new()),
         Speed(50.0),
         Sprite {
             color: Color::srgb(1.0,0.0,0.0),
@@ -48,12 +47,16 @@ fn spawn_character(mut commands: Commands, map: Res<Map>) {
 
 /// Moves towards the next waypoint in the path smoothly each frame
 fn move_character (time: Res<Time>,map: Res<Map>, mut query: Query<(&mut GridPosition, &mut Path, &mut Transform, &Speed)>) {
+
+    let x_offset = map.width as f32 * 8.0;
+    let y_offset = map.height as f32 * 8.0;
+
     for (mut grid_pos, mut path, mut transform, speed) in query.iter_mut() {
         let Some(next) = path.0.front() else { continue };
 
         let target =   Vec3::new(
-            next.0 as f32 * 16.0 - map.width as f32 * 8.0,
-            next.1 as f32 * 16.0 - map.height as f32 * 8.0,
+            next.0 as f32 * 16.0 - x_offset,
+            next.1 as f32 * 16.0 - y_offset,
             1.0
         );
 
@@ -81,13 +84,17 @@ fn move_to_click(mouse: Res<ButtonInput<MouseButton>>,
     let Ok(world_pos) = camera.viewport_to_world_2d(camera_transform, cursor_pos) else { return; };
 
     // add half map size to convert from centred world space back to grid coordinates
-    let goal_x = ((world_pos.x + map.width as f32 * 8.0) / 16.0) as u32;
-    let goal_y = ((world_pos.y + map.height as f32 * 8.0) / 16.0) as u32;
+    let raw_x = ((world_pos.x + map.width as f32 * 8.0) / 16.0);
+    let raw_y = ((world_pos.y + map.height as f32 * 8.0) / 16.0);
+    if !(raw_x >= 0.0 && raw_x < map.width as f32) { return }
+    if !(raw_y >= 0.0 && raw_y < map.height as f32) {return }
+    let goal_x = raw_x as u32;
+    let goal_y = raw_y as u32;
     let goal = (goal_x, goal_y);
 
 
     for (grid_pos, mut path) in characters.iter_mut() {
-        let new_path = find_path(&map, grid_pos.0, goal).unwrap_or_default().into_iter().collect();
+        let new_path = find_path(&map, grid_pos.0, goal).unwrap_or_default().into();
         path.0 = new_path;
     }
 }
