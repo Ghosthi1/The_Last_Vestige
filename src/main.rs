@@ -5,19 +5,15 @@ mod constants;
 
 use bevy::prelude::*;
 use bevy_ecs_tilemap::TilemapPlugin;
-use std::collections::HashMap;
 use crate::character::CharacterPlugin;
 use crate::constants::{MAP_HEIGHT, MAP_WIDTH};
-use crate::ai::{AiPlugin, FlowField, FlowFields, FlowLayer};
+use crate::ai::{AiPlugin,FlowFields};
 
 fn main() {
-    let mut layers = HashMap::new();
-    layers.insert(FlowLayer::Colonists, FlowField::new_flow_field(MAP_WIDTH, MAP_HEIGHT));
-
     App::new()
         .insert_resource(map::map_gen::generate_map(MAP_WIDTH, MAP_HEIGHT))
         .insert_resource(map::MapOffset { offset: Vec2::new(-(50.0 * 8.0), -(50.0 * 8.0)) })
-        .insert_resource(FlowFields { layers })
+        .insert_resource(FlowFields::default())
         .add_plugins((DefaultPlugins, TilemapPlugin, map::MapRendererPlugin, CharacterPlugin, AiPlugin))
         .add_systems(Startup, setup)
         .run();
