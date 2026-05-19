@@ -39,7 +39,7 @@ src/
   ai/
     mod.rs         # Declares submodules
     a_star.rs      # find_path(map, start, goal) — returns Option<Vec<(u32,u32)>>, 8-directional
-    flow_fields.rs # FlowLayer enum, FlowField struct (per-layer BFS data), FlowFields resource (HashMap of layers)
+    flow_fields.rs # FlowLayer enum, FlowField struct (per-layer BFS data), FlowFields resource (named fields per layer)
     ai_plugins.rs  # AiPlugin; rebuild_colonist_flow_field system
   character/
     mod.rs         # Declares submodules, re-exports GridPosition, Path, Speed, CharacterPlugin
@@ -68,17 +68,18 @@ src/
 ### Flow Fields
 
 - **Purpose:** shares one BFS computation across all entities targeting the same goal — every reachable tile gets a direction pointing toward the goal, so N colonists pay O(map) not O(N × path)
-- **`FlowLayer` enum** keys the `FlowFields` resource HashMap — one layer per goal type (e.g. `Colonist`); add variants as new goal types are needed
-- **`FlowField` struct** holds `width`, `height`, and `directions: Vec<Option<(i8, i8)>>` — `None` means impassable or unreachable; `Some((0,0))` means the goal tile itself
+- **`FlowLayer` enum** names the layer types — one variant per goal type (e.g. `Colonists`); add variants as new goal types are needed
+- **`FlowField` struct** holds `width`, `height`, `directions: Vec<Option<(i8, i8)>>`, `cost_so_far: Vec<u32>`, `valid_goals: Vec<(u32, u32)>`, and `open_set: BinaryHeap<(Reverse<u32>, u32, u32)>` — `directions` is `None` for impassable/unreachable tiles, `Some((0,0))` for the goal tile itself; `cost_so_far`, `valid_goals`, and `open_set` are all reusable buffers stored as fields and cleared at the start of each rebuild to avoid per-call heap allocation
 - **`build_flow_fields(&mut self, map, goals)`** takes a slice of goal positions — seeds all goals into the heap at cost 0 so the Dijkstra expands from all simultaneously; each tile's direction points toward whichever goal is cheapest to reach. Same 10/14 cardinal/diagonal cost model as A* for consistency
+- **Min-heap via `std::cmp::Reverse`** — cost is wrapped in `Reverse` on push and unwrapped on pop, giving correct Dijkstra ordering (cheapest node first) from Rust's max-heap `BinaryHeap`
 - **Multiple goals:** seeding multiple positions at cost 0 before the loop is all that's needed — the BFS naturally produces a "nearest goal" field for free
 - **Direction convention:** direction at `(nx, ny)` = `(x - nx, y - ny)` cast to `i8`, where `(x, y)` is the parent tile (one step closer to goal); values are always in `{-1, 0, 1}`
 - **Lazy deletion** — same pattern as A*: duplicate heap entries are allowed, stale ones skipped via `cost_so_far` comparison on pop
 - **Flat `Vec` arrays** for `cost_so_far` and `directions`, indexed by `x + y * width`; `u32::MAX` is the sentinel for "not yet reached"
 - **`OFFSETS` constant** lives in `constants.rs` and is shared with `a_star.rs` — both use the same 8-directional neighbourhood
-- **`build_flow_fields` validates per goal** — skips invalid or impassable goals with `continue`, not `return`, so one bad goal doesn't abort the whole build
-- **`FlowFields` resource** is inserted in `main.rs` with layers pre-populated — e.g. `Colonists` layer initialised with `FlowField::new_flow_field(MAP_WIDTH, MAP_HEIGHT)`
-- **`AiPlugin`** in `ai/ai_plugins.rs` owns the rebuild system — `rebuild_colonist_flow_field` runs every `Update`, queries `Changed<GridPosition>`, collects all colonist positions, and rebuilds the `Colonists` layer; returns early if no colonist moved that frame
+- **`build_flow_fields` validates goals upfront** — filters goals into a `valid_goals` vec before seeding; skips invalid or impassable goals so they are never seeded; returns early if no valid goals remain
+- **`FlowFields` resource** has named fields (`colonists`, `structures`, `walls`) — one `FlowField` per layer, accessed directly without hashing; implements `Default` using `MAP_WIDTH`/`MAP_HEIGHT` so new layers only require adding a field and a line to the `Default` impl; inserted in `main.rs` as `FlowFields::default()`
+- **`AiPlugin`** in `ai/ai_plugins.rs` owns the rebuild system — `rebuild_colonist_flow_field` runs every `Update` with two queries: one filtered on `Changed<GridPosition>` as a cheap early-return gate, one unfiltered to collect all colonist positions as goals; uses `Local<Vec<(u32,u32)>>` for the positions buffer so it is allocated once and reused each frame; rebuilds the `colonists` field directly
 - **Rebuild trigger:** `GridPosition` is written in `move_character` (`grid_pos.0 = *next`) when a colonist arrives at a waypoint — this marks the component changed and fires the rebuild system that frame
 - **Layer design:** `FlowLayer` variants represent targets things navigate *toward* — `Colonists` means "goal is colonist positions, used by enemies"; colonists themselves use A* for player-directed movement
 
