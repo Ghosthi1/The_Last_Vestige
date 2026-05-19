@@ -1,5 +1,6 @@
 ﻿use std::cmp::{max};
 use std::collections::{BinaryHeap};
+use crate::constants::OFFSETS;
 
 use crate::map::Map;
 
@@ -46,8 +47,6 @@ pub fn find_path(map: &Map, start:(u32, u32), goal:(u32, u32)) -> Option<Vec<(u3
     let mut closed_set =  vec![false; (map.width * map.height) as usize];     // Nodes fully processed (their path is confirmed)
     let mut came_from = vec![u32::MAX; (map.width * map.height) as usize];  // The path taken, used to remake the route by working backwards
     let mut g_scores = vec![u32::MAX; (map.width * map.height) as usize];    // The best known cost to reach each position
-
-    const OFFSETS: [(i32, i32); 8] =[(-1, -1), (0, -1), (1, -1), (-1, 0), (1, 0), (-1, 1), (0, 1), (1, 1)];
 
     let h = heuristic(start, goal);
     open_set.push(Node{pos: start, g:0, h, f: h});

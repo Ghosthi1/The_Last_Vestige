@@ -64,6 +64,19 @@ src/
 - **`f` is precomputed** on `Node` construction and stored as a field — avoids recomputing `g + h` on every heap comparison; `h` is also bound to a local before each `push` so `heuristic` is never called twice for the same node
 - **`find_path` validates inputs upfront** — returns `None` immediately if start or goal are out of bounds, or if the goal tile is impassable; the expensive search is never started in those cases
 
+### Flow Fields
+
+- **Purpose:** shares one BFS computation across all entities targeting the same goal — every reachable tile gets a direction pointing toward the goal, so N colonists pay O(map) not O(N × path)
+- **`FlowLayer` enum** keys the `FlowFields` resource HashMap — one layer per goal type (e.g. `Colonist`); add variants as new goal types are needed
+- **`FlowField` struct** holds `width`, `height`, and `directions: Vec<Option<(i8, i8)>>` — `None` means impassable or unreachable; `Some((0,0))` means the goal tile itself
+- **`build_flow_fields(&mut self, map, goal)`** runs Dijkstra outward from the goal tile, filling each reachable tile's direction with the unit vector pointing back toward the goal — same 10/14 cardinal/diagonal cost model as A* for consistency
+- **Direction convention:** direction at `(nx, ny)` = `(x - nx, y - ny)` cast to `i8`, where `(x, y)` is the parent tile (one step closer to goal); values are always in `{-1, 0, 1}`
+- **Lazy deletion** — same pattern as A*: duplicate heap entries are allowed, stale ones skipped via `cost_so_far` comparison on pop
+- **Flat `Vec` arrays** for `cost_so_far` and `directions`, indexed by `x + y * width`; `u32::MAX` is the sentinel for "not yet reached"
+- **`OFFSETS` constant** lives in `constants.rs` and is shared with `a_star.rs` — both use the same 8-directional neighbourhood
+- **`build_flow_fields` validates upfront** — returns early if goal is out of bounds or impassable, same guard pattern as `find_path`
+- **`FlowFields` resource** holds a `HashMap<FlowLayer, FlowField>` — must be inserted into the app at startup; rebuild the relevant layer whenever the goal changes or a `TileChangedEvent` fires
+
 ### Characters
 
 - **Components:** `GridPosition(u32, u32)` — authoritative grid position; `Path(VecDeque<(u32,u32)>)` — remaining waypoints; `Speed(f32)` — movement speed in tiles per second
