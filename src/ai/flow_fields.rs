@@ -9,7 +9,7 @@ use std::cmp::Reverse;
 #[derive(Hash, PartialEq, Eq, Clone, Copy, Debug)]
 /// What the target of the flow field will be
 pub enum FlowLayer {
-    Colonists,
+    Colonist,
     Structures,
     Walls,
 }

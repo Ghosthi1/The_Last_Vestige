@@ -4,7 +4,7 @@ use bevy::app::{App, Plugin, Update};
 use bevy::prelude::{Query, Res};
 use crate::map::Map;
 use crate::ai::{FlowFields};
-use crate::character::GridPosition;
+use crate::character::{Colonist, GridPosition};
 
 pub struct AiPlugin;
 impl Plugin for AiPlugin {
@@ -13,8 +13,8 @@ impl Plugin for AiPlugin {
     }
 }
 
-fn rebuild_colonist_flow_field(mut flow_fields: ResMut<FlowFields>, map: Res<Map>, colonist_moved: Query<&GridPosition, Changed<GridPosition>>,
-                               colonist_pos: Query<&GridPosition>, mut positions: Local<Vec<(u32, u32)>>) {
+pub fn rebuild_colonist_flow_field(mut flow_fields: ResMut<FlowFields>, map: Res<Map>, colonist_moved: Query<&GridPosition, (With<Colonist>, Changed<GridPosition>)>,
+                               colonist_pos: Query<&GridPosition, With<Colonist>>, mut positions: Local<Vec<(u32, u32)>>) {
     if colonist_moved.is_empty() { return } // no colonist moved
 
     positions.clear();

@@ -17,6 +17,10 @@ pub struct Path (pub VecDeque<(u32,u32)>);
 #[derive(Component)]
 pub struct Speed (pub f32);
 
+/// Tags the character
+#[derive(Component)]
+pub struct Colonist;
+
 /// Manages character spawning and movement
 pub struct CharacterPlugin;
 impl Plugin for CharacterPlugin {
@@ -28,8 +32,8 @@ impl Plugin for CharacterPlugin {
 
 /// Spawns a character with GridPosition, Path and Speed components
 fn spawn_character(mut commands: Commands, map: Res<Map>) {
-
     commands.spawn((
+        Colonist,
         GridPosition((1,1)),
         Path(VecDeque::new()),
         Speed(50.0),

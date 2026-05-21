@@ -42,8 +42,11 @@ src/
     flow_fields.rs # FlowLayer enum, FlowField struct (per-layer BFS data), FlowFields resource (named fields per layer)
     ai_plugins.rs  # AiPlugin; rebuild_colonist_flow_field system
   character/
-    mod.rs         # Declares submodules, re-exports GridPosition, Path, Speed, CharacterPlugin
-    characters.rs  # GridPosition, Path, Speed components; CharacterPlugin; spawn, movement, and click-to-move systems
+    mod.rs         # Declares submodules, re-exports GridPosition, Path, Speed, Colonist, CharacterPlugin
+    characters.rs  # GridPosition, Path, Speed, Colonist components; CharacterPlugin; spawn, movement, and click-to-move systems
+  enemys/
+    mod.rs         # Declares submodules, re-exports Enemy and EnemyPlugin
+    enemy.rs       # Enemy marker component; EnemyPlugin; spawn and flow-field-driven movement systems
 ```
 
 ### Assets
@@ -79,18 +82,26 @@ src/
 - **`OFFSETS` constant** lives in `constants.rs` and is shared with `a_star.rs` — both use the same 8-directional neighbourhood
 - **`build_flow_fields` validates goals upfront** — filters goals into a `valid_goals` vec before seeding; skips invalid or impassable goals so they are never seeded; returns early if no valid goals remain
 - **`FlowFields` resource** has named fields (`colonists`, `structures`, `walls`) — one `FlowField` per layer, accessed directly without hashing; implements `Default` using `MAP_WIDTH`/`MAP_HEIGHT` so new layers only require adding a field and a line to the `Default` impl; inserted in `main.rs` as `FlowFields::default()`
-- **`AiPlugin`** in `ai/ai_plugins.rs` owns the rebuild system — `rebuild_colonist_flow_field` runs every `Update` with two queries: one filtered on `Changed<GridPosition>` as a cheap early-return gate, one unfiltered to collect all colonist positions as goals; uses `Local<Vec<(u32,u32)>>` for the positions buffer so it is allocated once and reused each frame; rebuilds the `colonists` field directly
+- **`AiPlugin`** in `ai/ai_plugins.rs` owns the rebuild system — `pub fn rebuild_colonist_flow_field` runs every `Update` with two queries: both filtered `With<Colonist>` so enemies with `GridPosition` are never included as goals; one also filtered on `Changed<GridPosition>` as a cheap early-return gate; uses `Local<Vec<(u32,u32)>>` for the positions buffer so it is allocated once and reused each frame; rebuilds the `colonists` field directly
 - **Rebuild trigger:** `GridPosition` is written in `move_character` (`grid_pos.0 = *next`) when a colonist arrives at a waypoint — this marks the component changed and fires the rebuild system that frame
 - **Layer design:** `FlowLayer` variants represent targets things navigate *toward* — `Colonists` means "goal is colonist positions, used by enemies"; colonists themselves use A* for player-directed movement
 
 ### Characters
 
-- **Components:** `GridPosition(u32, u32)` — authoritative grid position; `Path(VecDeque<(u32,u32)>)` — remaining waypoints; `Speed(f32)` — movement speed in tiles per second
+- **Components:** `GridPosition((u32, u32))` — authoritative grid position (inner tuple); `Path(VecDeque<(u32,u32)>)` — remaining waypoints; `Speed(f32)` — movement speed in tiles per second; `Colonist` — zero-sized marker, filters colonist-only queries so enemies are never accidentally included
 - **Smooth movement:** `move_character` advances `Transform` toward the next waypoint each frame using `move_towards(target, speed * delta_secs)`; `GridPosition` is only updated when the character arrives at a waypoint (`distance_squared < 0.01`, avoiding a sqrt)
 - **Click-to-move:** `move_to_click` converts cursor window position → world position via `camera.viewport_to_world_2d`, then applies the tilemap centering offset to get grid coordinates, bounds-checks both axes before casting to `u32` (negative cast saturates silently), then calls `find_path`
 - **System ordering:** `move_to_click` is chained before `move_character` via `.chain()` — ensures a click is applied before movement processes that same frame
 - **Tilemap offset:** the tilemap is centered on screen — tile world position = `tile_coord * 16 - map_size * 8`; all coordinate conversions must account for this
 - **Loop-invariant hoisting:** map offset values (`width/height * 8.0`) are computed once before the character loop in `move_character`, not per-iteration
+
+### Enemies
+
+- **`Enemy` marker component** — zero-sized, lives in `enemys/enemy.rs`; used to filter enemy-only queries and distinguish enemies from colonists who share `GridPosition` and `Speed`
+- **Flow-field movement** — enemies do not use A* or a `Path` component; each frame `move_enemy` looks up `flow_fields.colonists.direction_at(grid_pos.0.0, grid_pos.0.1)`, skips if `None` (unreachable) or `(0,0)` (already at goal), then computes the next tile by adding the `i8` direction to the current `u32` grid coords via an `i32` cast to avoid underflow
+- **System ordering:** `move_enemy` is registered `.after(rebuild_colonist_flow_field)` — ensures the flow field is always current before enemies read it; `rebuild_colonist_flow_field` is `pub` so `EnemyPlugin` can reference it for ordering
+- **Spawn:** takes a slice of `(u32, u32)` positions and loops, spawning one enemy per position; `GridPosition` and `Transform` must always use the same grid coordinates — mismatches cause enemies to visually slide to their logical position on the first frame
+- **Smooth movement:** identical interpolation pattern to colonists — `move_towards` each frame, `GridPosition` updated only on arrival (`distance_squared < 0.01`)
 
 ### Tile System
 
