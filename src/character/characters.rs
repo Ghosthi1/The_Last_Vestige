@@ -31,21 +31,22 @@ impl Plugin for CharacterPlugin {
 }
 
 /// Spawns a character with GridPosition, Path and Speed components
-fn spawn_character(mut commands: Commands, map: Res<Map>) {
+fn spawn_character(mut commands: Commands, map: Res<Map>, asset_server: Res<AssetServer>) {
+    let texture = asset_server.load("Colonists/Knight/Knight_1.png");
     commands.spawn((
         Colonist,
         GridPosition((1,1)),
         Path(VecDeque::new()),
         Speed(50.0),
         Sprite {
-            color: Color::srgb(1.0,0.0,0.0),
+            image: texture,
             custom_size: Some(Vec2::splat(TILE_SIZE)),
             ..default()
             },
         Transform::from_xyz(
             // offset by half map size to match the centred tilemap origin
-            1.0 * 16.0 - map.width as f32 * TILE_SIZE/2.0,
-            1.0 * 16.0 - map.height as f32 * TILE_SIZE/2.0,
+            1.0 * TILE_SIZE - map.width as f32 * TILE_SIZE/2.0,
+            1.0 * TILE_SIZE - map.height as f32 * TILE_SIZE/2.0,
             1.0
         )
     ));}

@@ -51,7 +51,8 @@ src/
 
 ### Assets
 
-- `assets/PlaceHolder_tileset1.png` — spritesheet, three 16×16 tiles: floor (0), wall (1), door (2). `TILE_SIZE = 16.0` defined in `src/constants.rs` as a shared `pub const`, imported via `use crate::constants::TILE_SIZE` wherever tile sizing is needed
+- `assets/PlaceHolder_tileset.png` — spritesheet, three 32×32 tiles: floor (0), wall (1), door (2). `TILE_SIZE = 32.0` defined in `src/constants.rs` as a shared `pub const`, imported via `use crate::constants::TILE_SIZE` wherever tile sizing is needed
+- `assets/enemeys/Spiders/Grunt.png` — sprite for the Grunt enemy; loaded via `AssetServer` in `spawn_enemy` and set on the `Sprite` `image` field; `custom_size` is `Vec2::splat(TILE_SIZE)` but the grunt is intentionally drawn smaller than the canvas for visual style — hitbox size will be defined independently when collision is added
 
 ## Architecture Decisions
 
@@ -92,15 +93,15 @@ src/
 - **Smooth movement:** `move_character` advances `Transform` toward the next waypoint each frame using `move_towards(target, speed * delta_secs)`; `GridPosition` is only updated when the character arrives at a waypoint (`distance_squared < 0.01`, avoiding a sqrt)
 - **Click-to-move:** `move_to_click` converts cursor window position → world position via `camera.viewport_to_world_2d`, then applies the tilemap centering offset to get grid coordinates, bounds-checks both axes before casting to `u32` (negative cast saturates silently), then calls `find_path`
 - **System ordering:** `move_to_click` is chained before `move_character` via `.chain()` — ensures a click is applied before movement processes that same frame
-- **Tilemap offset:** the tilemap is centered on screen — tile world position = `tile_coord * 16 - map_size * 8`; all coordinate conversions must account for this
-- **Loop-invariant hoisting:** map offset values (`width/height * 8.0`) are computed once before the character loop in `move_character`, not per-iteration
+- **Tilemap offset:** the tilemap is centered on screen — tile world position = `tile_coord * TILE_SIZE - map_size * TILE_SIZE/2`; all coordinate conversions must account for this
+- **Loop-invariant hoisting:** map offset values (`width/height * TILE_SIZE/2`) are computed once before the character loop in `move_character`, not per-iteration
 
 ### Enemies
 
 - **`Enemy` marker component** — zero-sized, lives in `enemys/enemy.rs`; used to filter enemy-only queries and distinguish enemies from colonists who share `GridPosition` and `Speed`
 - **Flow-field movement** — enemies do not use A* or a `Path` component; each frame `move_enemy` looks up `flow_fields.colonists.direction_at(grid_pos.0.0, grid_pos.0.1)`, skips if `None` (unreachable) or `(0,0)` (already at goal), then computes the next tile by adding the `i8` direction to the current `u32` grid coords via an `i32` cast to avoid underflow
 - **System ordering:** `move_enemy` is registered `.after(rebuild_colonist_flow_field)` — ensures the flow field is always current before enemies read it; `rebuild_colonist_flow_field` is `pub` so `EnemyPlugin` can reference it for ordering
-- **Spawn:** takes a slice of `(u32, u32)` positions and loops, spawning one enemy per position; `GridPosition` and `Transform` must always use the same grid coordinates — mismatches cause enemies to visually slide to their logical position on the first frame
+- **Spawn:** `spawn_enemy` takes `AssetServer` as a parameter to load the enemy sprite; `GridPosition` and `Transform` must always use the same grid coordinates — mismatches cause enemies to visually slide to their logical position on the first frame
 - **Smooth movement:** identical interpolation pattern to colonists — `move_towards` each frame, `GridPosition` updated only on arrival (`distance_squared < 0.01`)
 
 ### Tile System
