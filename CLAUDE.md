@@ -30,7 +30,7 @@ Files have specific, focused responsibilities — keep things clean and tidy. On
 ```
 src/
   main.rs          # App entry point, startup systems
-  constants.rs     # Shared constants — TILE_SIZE, MAP_WIDTH, MAP_HEIGHT
+  constants.rs     # Shared constants — TILE_SIZE, MAP_WIDTH, MAP_HEIGHT, OFFSETS, ENEMY_SPEED, ENEMY_STOP_RADIUS, ENEMY_SEPARATION_STRENGTH
   map/
     mod.rs         # Declares submodules, re-exports Map, TileData, TileType, MapRendererPlugin
     map.rs         # TileType, TileData, Map struct and constructor — no generation logic
@@ -101,8 +101,8 @@ src/
 - **`Enemy` marker component** — zero-sized, lives in `enemys/enemy.rs`; used to filter enemy-only queries and distinguish enemies from colonists who share `GridPosition` and `Speed`
 - **Continuous movement** — enemies move in world space, not tile-to-tile; `Transform` is authoritative, `GridPosition` is derived from it each frame by `(translation + offset) / TILE_SIZE`, floored to `u32`; this allows more than 8 enemies to surround a single colonist
 - **Flow-field movement** — each frame `move_enemy` looks up the flow field direction for the enemy's current `GridPosition`, converts the `(i8, i8)` to a normalised `Vec2`, scales by `speed * delta_secs`, and adds directly to `Transform.translation`; normalisation ensures diagonal movement is not faster than cardinal
-- **Colonist proximity stop** — before applying velocity, `move_enemy` checks if any colonist is within `TILE_SIZE * 0.8` (distance squared); if so, the enemy stops moving that frame, preventing it from driving through the colonist
-- **Separation steering** — `separate_enemies` runs `.before(move_enemy)` each frame; it collects all enemy world positions into a `Vec<Vec2>` (snapshot), then iterates mutably and accumulates a repulsion force from all enemies within `TILE_SIZE`; closer enemies push harder (force scaled by `1/dist`); the force is multiplied by a strength constant and `delta_secs` then added to `Transform.translation`
+- **Colonist proximity stop** — before applying velocity, `move_enemy` checks if any colonist is within `TILE_SIZE * ENEMY_STOP_RADIUS` (distance squared); if so, the enemy stops moving that frame, preventing it from driving through the colonist; `ENEMY_STOP_RADIUS = 0.7` lives in `constants.rs`
+- **Separation steering** — `separate_enemies` runs `.before(move_enemy)` each frame; it collects all enemy world positions into a `Vec<Vec2>` (snapshot), then iterates mutably and accumulates a repulsion force from all enemies within `TILE_SIZE`; closer enemies push harder (force scaled by `1/dist`); the force is multiplied by `ENEMY_SEPARATION_STRENGTH` and `delta_secs` then added to `Transform.translation`; `ENEMY_SEPARATION_STRENGTH = 50.0` lives in `constants.rs`
 - **Query disjointness** — `move_enemy` accesses `&mut Transform` for enemies and `&Transform` for colonists; Bevy requires explicit `Without<Colonist>` on the enemy query and `Without<Enemy>` on the colonist query to prove they never overlap, otherwise it panics with `B0001` at startup
 - **System ordering:** `separate_enemies.before(move_enemy)`, `move_enemy.after(rebuild_colonist_flow_field)` — separation is applied before flow-field movement each frame; flow field is always current before enemies read it
 - **Spawn:** `spawn_enemy` takes `AssetServer` as a parameter; the texture handle must be `.clone()`d for every spawn call since `Handle<Image>` is moved on first use; `GridPosition` and `Transform` must be initialised from the same grid coordinates

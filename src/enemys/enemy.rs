@@ -1,6 +1,6 @@
 ﻿use bevy::prelude::*;
 use crate::map::Map;
-use crate::constants::TILE_SIZE;
+use crate::constants::{TILE_SIZE, ENEMY_SPEED, ENEMY_STOP_RADIUS, ENEMY_SEPARATION_STRENGTH};
 use crate::character::{Colonist, GridPosition, Speed};
 use crate::ai::FlowFields;
 use crate::ai::ai_plugins::rebuild_colonist_flow_field;
@@ -24,7 +24,7 @@ fn spawn_enemy(mut commands: Commands, map: Res<Map>, asset_server: Res<AssetSer
     commands.spawn((
         Enemy,
         GridPosition((25,25)),
-        Speed(30.0),
+        Speed(ENEMY_SPEED),
         Sprite {
             image: texture.clone(),
             custom_size: Some(Vec2::splat(TILE_SIZE)),
@@ -40,7 +40,7 @@ fn spawn_enemy(mut commands: Commands, map: Res<Map>, asset_server: Res<AssetSer
     commands.spawn((
         Enemy,
         GridPosition((27,27)),
-        Speed(30.0),
+        Speed(ENEMY_SPEED),
         Sprite {
             image: texture.clone(),
             custom_size: Some(Vec2::splat(TILE_SIZE)),
@@ -56,7 +56,7 @@ fn spawn_enemy(mut commands: Commands, map: Res<Map>, asset_server: Res<AssetSer
     commands.spawn((
         Enemy,
         GridPosition((30,25)),
-        Speed(30.0),
+        Speed(ENEMY_SPEED),
         Sprite {
             image: texture.clone(),
             custom_size: Some(Vec2::splat(TILE_SIZE)),
@@ -86,7 +86,7 @@ fn move_enemy (mut query: Query<(&mut GridPosition,  &mut Transform, &Speed), (W
 
         let velocity = Vec2::new(direction.0 as f32, direction.1 as f32).normalize() * speed.0 * time.delta_secs();
 
-        if colonist.iter().any(|colonist| transform.translation.distance_squared(colonist.translation) < (TILE_SIZE * 0.7).powi(2)) { continue; }
+        if colonist.iter().any(|colonist| transform.translation.distance_squared(colonist.translation) < (TILE_SIZE * ENEMY_STOP_RADIUS).powi(2)) { continue; }
 
         transform.translation.x += velocity.x;
         transform.translation.y += velocity.y;
@@ -112,7 +112,7 @@ fn separate_enemies(mut query: Query<&mut Transform, With<Enemy>> ,time: Res<Tim
             sepaeation += diff.normalize() / dist;
         }
 
-        transform.translation.x += sepaeation.x * 50.0 * time.delta_secs();
-        transform.translation.y += sepaeation.y * 50.0 * time.delta_secs();
+        transform.translation.x += sepaeation.x * ENEMY_SEPARATION_STRENGTH * time.delta_secs();
+        transform.translation.y += sepaeation.y * ENEMY_SEPARATION_STRENGTH * time.delta_secs();
     }
 }
