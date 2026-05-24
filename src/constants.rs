@@ -6,4 +6,4 @@ pub const OFFSETS: [(i32, i32); 8] = [(-1, -1), (0, -1), (1, -1), (-1, 0), (1, 0
 /// ENEMIES ///
 pub const ENEMY_SPEED: f32 = 40.0;
 pub const ENEMY_STOP_RADIUS: f32 = 0.7;
-pub const ENEMY_SEPARATION_STRENGTH: f32 = 50.0;
+pub const ENEMY_SEPARATION_STRENGTH: f32 = 10.0;

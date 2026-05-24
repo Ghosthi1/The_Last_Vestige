@@ -79,14 +79,17 @@ fn move_enemy (mut query: Query<(&mut GridPosition,  &mut Transform, &Speed), (W
     let x_offset = map.width as f32 * TILE_SIZE/2.0;
     let y_offset = map.height as f32 * TILE_SIZE/2.0;
 
+    let colonist_positions: Vec<Vec2> = colonist.iter().map(|t| t.translation.truncate()).collect();
+
+
     for (mut grid_pos, mut transform, speed) in query.iter_mut() {
 
         let Some(direction) = flow_fields.colonists.direction_at(grid_pos.0.0, grid_pos.0.1) else { continue };
         if direction == (0,0) {continue;}
 
-        let velocity = Vec2::new(direction.0 as f32, direction.1 as f32).normalize() * speed.0 * time.delta_secs();
+        let velocity = Vec2::new(direction.0 as f32, direction.1 as f32)* speed.0 * time.delta_secs();
 
-        if colonist.iter().any(|colonist| transform.translation.distance_squared(colonist.translation) < (TILE_SIZE * ENEMY_STOP_RADIUS).powi(2)) { continue; }
+        if colonist_positions.iter().any(|pos| transform.translation.truncate().distance_squared(*pos) < (TILE_SIZE * ENEMY_STOP_RADIUS).powi(2)) { continue; }
 
         transform.translation.x += velocity.x;
         transform.translation.y += velocity.y;
@@ -100,19 +103,24 @@ fn move_enemy (mut query: Query<(&mut GridPosition,  &mut Transform, &Speed), (W
 /// Pushes the enemies apart so they don't all stack up
 fn separate_enemies(mut query: Query<&mut Transform, With<Enemy>> ,time: Res<Time>){
     let positions: Vec<Vec2> = query.iter().map(|t| t.translation.truncate()).collect();
-    for (i, mut transform) in query.iter_mut().enumerate() {
-        let mut sepaeation = Vec2::ZERO;
-        for (j, position) in positions.iter().enumerate() {
-            if i == j {continue;}
-            let diff = positions[i] - *position;
+    let mut forces: Vec<Vec2> = vec![Vec2::ZERO; positions.len()];
+
+    for i in 0..positions.len() {
+        for j in (i+1)..positions.len() {
+            let diff = positions[i] - positions[j];
             let dist = diff.length();
 
             if dist == 0.0 || dist > TILE_SIZE {continue;}
 
-            sepaeation += diff.normalize() / dist;
-        }
+            forces[i] += (1.0 - dist / TILE_SIZE) * diff / dist;
+            forces[j] -= (1.0 - dist / TILE_SIZE) * diff / dist;
 
-        transform.translation.x += sepaeation.x * ENEMY_SEPARATION_STRENGTH * time.delta_secs();
-        transform.translation.y += sepaeation.y * ENEMY_SEPARATION_STRENGTH * time.delta_secs();
+        }
     }
+
+    for (i, mut transform) in query.iter_mut().enumerate() {
+        transform.translation.x += forces[i].x * ENEMY_SEPARATION_STRENGTH * time.delta_secs();
+        transform.translation.y += forces[i].y * ENEMY_SEPARATION_STRENGTH * time.delta_secs();
+    }
+
 }
