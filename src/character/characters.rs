@@ -98,9 +98,14 @@ fn move_to_click(mouse: Res<ButtonInput<MouseButton>>,
     let goal_y = raw_y as u32;
     let goal = (goal_x, goal_y);
 
-
     for (grid_pos, mut path) in characters.iter_mut() {
-        let new_path = find_path(&map, grid_pos.0, goal).unwrap_or_default().into();
-        path.0 = new_path;
+        if path.0.len() ==0 {
+            let new_path = find_path(&map, grid_pos.0, goal).unwrap_or_default().into();
+            path.0 = new_path;
+        }
+        else {
+            let new_path = find_path(&map, *path.0.front().unwrap(), goal).unwrap_or_default().into();
+            path.0 = new_path;
+        }
     }
 }
