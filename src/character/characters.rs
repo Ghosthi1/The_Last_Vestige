@@ -45,8 +45,9 @@ fn spawn_character(mut commands: Commands, map: Res<Map>, asset_server: Res<Asse
             },
         Transform::from_xyz(
             // offset by half map size to match the centred tilemap origin
-            30.0 * TILE_SIZE - map.width as f32 * TILE_SIZE/2.0,
-            30.0 * TILE_SIZE - map.height as f32 * TILE_SIZE/2.0,
+            30.0 * TILE_SIZE + TILE_SIZE / 2.0 - map.width as f32 * TILE_SIZE / 2.0,
+            30.0 * TILE_SIZE + TILE_SIZE / 2.0 - map.height as f32 * TILE_SIZE / 2.0,
+
             1.0
         )
     ));}
@@ -61,8 +62,8 @@ fn move_character (time: Res<Time>,map: Res<Map>, mut query: Query<(&mut GridPos
         let Some(next) = path.0.front() else { continue };
 
         let target =   Vec3::new(
-            next.0 as f32 * TILE_SIZE - x_offset,
-            next.1 as f32 * TILE_SIZE- y_offset,
+            next.0 as f32 * TILE_SIZE + TILE_SIZE / 2.0 - x_offset,
+            next.1 as f32 * TILE_SIZE + TILE_SIZE / 2.0 - y_offset,
             1.0
         );
 
