@@ -47,7 +47,6 @@ fn spawn_character(mut commands: Commands, map: Res<Map>, asset_server: Res<Asse
             // offset by half map size to match the centred tilemap origin
             30.0 * TILE_SIZE + TILE_SIZE / 2.0 - map.width as f32 * TILE_SIZE / 2.0,
             30.0 * TILE_SIZE + TILE_SIZE / 2.0 - map.height as f32 * TILE_SIZE / 2.0,
-
             1.0
         )
     ));}
@@ -84,7 +83,7 @@ fn move_to_click(mouse: Res<ButtonInput<MouseButton>>,
                  map: Res<Map>,
                  mut characters: Query<(&GridPosition, &mut Path)> )
 {
-    if !mouse.just_pressed(MouseButton::Left) {return}
+    if !mouse.just_pressed(MouseButton::Right) {return}
     let Ok(window) = window.single() else {return};
     let Some(cursor_pos) = window.cursor_position() else {return};
     let Ok((camera, camera_transform)) = camera.single() else { return; };
