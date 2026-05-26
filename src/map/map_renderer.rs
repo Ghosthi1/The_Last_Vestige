@@ -41,8 +41,8 @@ pub fn spawn_tilemap(map: Res<Map>,asset_server: Res<AssetServer>, mut command:C
         texture: TilemapTexture::Single(texture_handle),
         tile_size: TilemapTileSize {x:TILE_SIZE, y:TILE_SIZE},
         transform: Transform::from_xyz(
-            -(map.width as f32 * TILE_SIZE) / 2.0,
-            -(map.height as f32 * TILE_SIZE) / 2.0,
+            -(map.width as f32 * TILE_SIZE) / 2.0 + TILE_SIZE / 2.0,
+            -(map.height as f32 * TILE_SIZE) / 2.0 + TILE_SIZE / 2.0,
             0.0 ),
         ..Default::default()
     });
