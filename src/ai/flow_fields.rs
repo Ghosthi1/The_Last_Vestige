@@ -76,6 +76,14 @@ impl FlowField{
                 if nx >= map.width as i32 || ny >= map.height as i32 || nx < 0 || ny < 0 {continue} // Validation
                 if  !map.get(nx as u32, ny as u32).is_passable() {continue}
 
+                if *dx != 0 && *dy != 0{
+                    let cx = x as i32 + *dx;
+                    let cy = y as i32 + *dy;
+                    if cx >= map.width as i32 || cy >= map.height as i32 || cx < 0 || cy < 0 {continue} // Validation
+                    if !map.get(cx as u32, y).is_passable() {continue}
+                    if !map.get(x, cy as u32).is_passable() {continue}
+                }
+
                 let move_cost = if *dx != 0 && *dy != 0 { 14 } else { 10 };
                 let new_cost = cost + move_cost;
 
