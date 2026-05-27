@@ -91,7 +91,13 @@ pub fn find_path(map: &Map, start:(u32, u32), goal:(u32, u32)) -> Option<Vec<(u3
             let pos = (nx as u32, ny as u32);
             let neighbour_idx = pos.0 as usize + pos.1 as usize * map.width as usize;
 
-            if  closed_set[neighbour_idx]|| !map.get(pos.0, pos.1).is_passable() {continue}
+            if  closed_set[neighbour_idx]|| !map.get(pos.0, pos.1).is_passable() {continue};
+
+            if *dx != 0 && *dy != 0{
+                if !map.get(nx as u32, node.pos.1).is_passable() {continue}
+                if !map.get(node.pos.0, ny as u32).is_passable() {continue}
+            }
+
 
             let move_cost = if *dx != 0 && *dy != 0 { 14 } else { 10 };
             let tentative_g = node.g + move_cost; // Cost to reach neighbor from current node

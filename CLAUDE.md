@@ -71,6 +71,7 @@ src/
 - **`came_from` stores packed `u32` indices** rather than `(u32, u32)` tuples — unpack with `index % width` for x and `index / width` for y; sentinel value `u32::MAX` means no parent set
 - **`f` is precomputed** on `Node` construction and stored as a field — avoids recomputing `g + h` on every heap comparison; `h` is also bound to a local before each `push` so `heuristic` is never called twice for the same node
 - **`find_path` validates inputs upfront** — returns `None` immediately if start or goal are out of bounds, or if the goal tile is impassable; the expensive search is never started in those cases
+- **No diagonal corner-cutting** — when expanding a diagonal neighbour `(nx, ny)` from current node `(x, y)`, both bordering cardinal tiles must also be passable: `(nx, node.pos.1)` and `(node.pos.0, ny)`; if either is a wall the diagonal is skipped; prevents paths that squeeze through the gap between two diagonally adjacent walls
 
 ### Flow Fields
 
@@ -85,6 +86,7 @@ src/
 - **Flat `Vec` arrays** for `cost_so_far` and `directions`, indexed by `x + y * width`; `u32::MAX` is the sentinel for "not yet reached"
 - **`OFFSETS` constant** lives in `constants.rs` and is shared with `a_star.rs` — both use the same 8-directional neighbourhood
 - **`build_flow_fields` validates goals upfront** — filters goals into a `valid_goals` vec before seeding; skips invalid or impassable goals so they are never seeded; returns early if no valid goals remain
+- **No diagonal corner-cutting** — when expanding a diagonal neighbour `(nx, ny)` from current tile `(x, y)`, both bordering cardinal tiles must be passable: `(cx, y)` and `(x, cy)` where `cx = x + dx` and `cy = y + dy`; if either is a wall the diagonal is skipped; same rule as A* for consistency
 - **`FlowFields` resource** has named fields (`colonists`, `structures`, `walls`) — one `FlowField` per layer, accessed directly without hashing; implements `Default` using `MAP_WIDTH`/`MAP_HEIGHT` so new layers only require adding a field and a line to the `Default` impl; inserted in `main.rs` as `FlowFields::default()`
 - **`AiPlugin`** in `ai/ai_plugins.rs` owns the rebuild system — `pub fn rebuild_colonist_flow_field` runs every `Update` with two queries: both filtered `With<Colonist>` so enemies with `GridPosition` are never included as goals; one also filtered on `Changed<GridPosition>` as a cheap early-return gate; uses `Local<Vec<(u32,u32)>>` for the positions buffer so it is allocated once and reused each frame; rebuilds the `colonists` field directly
 - **Rebuild trigger:** `GridPosition` is written in `move_character` (`grid_pos.0 = *next`) when a colonist arrives at a waypoint — this marks the component changed and fires the rebuild system that frame
