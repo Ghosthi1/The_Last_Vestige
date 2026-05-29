@@ -3,20 +3,20 @@ mod ai;
 mod character;
 mod constants;
 mod enemys;
-mod camera;
 mod buildings;
-mod audio;
 mod components;
+mod systems;
+
 use bevy::prelude::*;
 use bevy_ecs_tilemap::TilemapPlugin;
-use crate::camera::CameraPlugin;
 use crate::character::CharacterPlugin;
 use crate::constants::{MAP_HEIGHT, MAP_WIDTH, TILE_SIZE};
 use crate::ai::{AiPlugin,FlowFields};
 use crate::buildings::BuildingPlugin;
 use crate::enemys::EnemyPlugin;
 use crate::enemys::EnemySpawnerPlugin;
-use crate::audio::AmbientPlugin;
+use crate::systems::AmbientPlugin;
+use crate::systems::CameraPlugin;
 
 fn main() {
     App::new()

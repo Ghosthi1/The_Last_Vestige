@@ -51,11 +51,9 @@ src/
   enemys/
     mod.rs         # Declares submodules, re-exports Enemy and EnemyPlugin
     enemy.rs       # Enemy marker component; EnemyPlugin; spawn and flow-field-driven movement systems
-  camera/
-    mod.rs         # Declares submodules, re-exports CameraPlugin
+  Systems/
+    mod.rs         # Declares camera and ambient submodules, re-exports both
     camera.rs      # CameraPlugin; zoom_camera (scroll wheel, multiplicative scale on OrthographicProjection); pan_camera (middle mouse drag, delta scaled by ortho.scale)
-  audio/
-    mod.rs         # Declares submodules, re-exports AmbientPlugin
     ambient.rs     # AmbientPlugin; startup system that loads and spawns the looping ambient audio entity
 ```
 
@@ -63,7 +61,7 @@ src/
 
 - `assets/PlaceHolder_tileset.png` — spritesheet, three 32×32 tiles: floor (0), wall (1), door (2). `TILE_SIZE = 32.0` defined in `src/constants.rs` as a shared `pub const`, imported via `use crate::constants::TILE_SIZE` wherever tile sizing is needed
 - `assets/enemeys/Spiders/Grunt.png` — sprite for the Grunt enemy; loaded via `AssetServer` in `spawn_enemy` and set on the `Sprite` `image` field; `custom_size` is `Vec2::splat(TILE_SIZE)` but the grunt is intentionally drawn smaller than the canvas for visual style — hitbox size will be defined independently when collision is added
-- `assets/Sound/Background/ambient_spaceship.ogg` — looping ambient soundtrack; loaded and spawned as an audio entity in `audio/ambient.rs` via `AmbientPlugin`
+- `assets/Sound/Background/ambient_spaceship.ogg` — looping ambient soundtrack; loaded and spawned as an audio entity in `Systems/ambient.rs` via `AmbientPlugin`
 
 ## Architecture Decisions
 
@@ -84,7 +82,7 @@ src/
 ### Flow Fields
 
 - **Purpose:** shares one BFS computation across all entities targeting the same goal — every reachable tile gets a direction pointing toward the goal, so N colonists pay O(map) not O(N × path)
-- **`FlowLayer` enum** names the layer types — one variant per goal type (e.g. `Colonists`); add variants as new goal types are needed
+- **`FlowLayer` enum** — defined but not yet wired up; intended for future dynamic layer selection (e.g. passing a layer type to a system rather than accessing fields directly by name)
 - **`FlowField` struct** holds `width`, `height`, `directions: Vec<Option<(i8, i8)>>`, `cost_so_far: Vec<u32>`, `valid_goals: Vec<(u32, u32)>`, and `open_set: BinaryHeap<(Reverse<u32>, u32, u32)>` — `directions` is `None` for impassable/unreachable tiles, `Some((0,0))` for the goal tile itself; `cost_so_far`, `valid_goals`, and `open_set` are all reusable buffers stored as fields and cleared at the start of each rebuild to avoid per-call heap allocation
 - **`build_flow_fields(&mut self, map, goals)`** takes a slice of goal positions — seeds all goals into the heap at cost 0 so the Dijkstra expands from all simultaneously; each tile's direction points toward whichever goal is cheapest to reach. Same 10/14 cardinal/diagonal cost model as A* for consistency
 - **Min-heap via `std::cmp::Reverse`** — cost is wrapped in `Reverse` on push and unwrapped on pop, giving correct Dijkstra ordering (cheapest node first) from Rust's max-heap `BinaryHeap`
@@ -98,7 +96,7 @@ src/
 - **`FlowFields` resource** has named fields (`colonists`, `structures`, `walls`) — one `FlowField` per layer, accessed directly without hashing; implements `Default` using `MAP_WIDTH`/`MAP_HEIGHT` so new layers only require adding a field and a line to the `Default` impl; inserted in `main.rs` as `FlowFields::default()`
 - **`AiPlugin`** in `ai/ai_plugins.rs` owns the rebuild system — `pub fn rebuild_colonist_flow_field` runs every `Update` with two queries: both filtered `With<Colonist>` so enemies with `GridPosition` are never included as goals; one also filtered on `Changed<GridPosition>` as a cheap early-return gate; uses `Local<Vec<(u32,u32)>>` for the positions buffer so it is allocated once and reused each frame; rebuilds the `colonists` field directly
 - **Rebuild trigger:** `GridPosition` is written in `move_character` (`grid_pos.0 = *next`) when a colonist arrives at a waypoint — this marks the component changed and fires the rebuild system that frame
-- **Layer design:** `FlowLayer` variants represent targets things navigate *toward* — `Colonists` means "goal is colonist positions, used by enemies"; colonists themselves use A* for player-directed movement
+- **Layer design:** `FlowFields` fields represent targets things navigate *toward* — `colonists` means "goal is colonist positions, used by enemies"; colonists themselves use A* for player-directed movement; layers are accessed directly by field name (`flow_fields.colonists`) rather than via `FlowLayer` dispatch
 
 ### Characters
 
@@ -136,7 +134,7 @@ src/
 ### Audio
 
 - **Entity-based audio** — Bevy 0.15+ replaced the `Audio` resource with a component model; playing audio means spawning an entity with `AudioPlayer` and `PlaybackSettings` components; despawning the entity stops playback
-- **Ambient music** — loaded and spawned once in a `Startup` system in `audio/ambient.rs`; `PlaybackSettings::LOOP` keeps it running for the lifetime of the app
+- **Ambient music** — loaded and spawned once in a `Startup` system in `Systems/ambient.rs`; `PlaybackSettings::LOOP` keeps it running for the lifetime of the app
 - **Asset paths** — `AssetServer::load` paths are relative to the `assets/` folder and must never include `assets/` as a prefix — Bevy prepends it automatically; capitalisation must match the filesystem exactly
 
 ### Tile System
