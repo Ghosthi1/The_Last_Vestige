@@ -8,6 +8,10 @@ impl Plugin for CameraPlugin {
     }
 }
 
+fn setup(mut commands: Commands) {
+    commands.spawn(Camera2d);
+}
+
 fn zoom_camera(scroll:  Res<AccumulatedMouseScroll>, mut projection: Query<&mut Projection, With<Camera2d>>) {
     let Ok(mut proj) = projection.single_mut() else { return };
     let sensitivity = 0.1;

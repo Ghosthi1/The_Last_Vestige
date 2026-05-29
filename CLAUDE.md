@@ -41,9 +41,13 @@ src/
     a_star.rs      # find_path(map, start, goal) — returns Option<Vec<(u32,u32)>>, 8-directional
     flow_fields.rs # FlowLayer enum, FlowField struct (per-layer BFS data), FlowFields resource (named fields per layer)
     ai_plugins.rs  # AiPlugin; rebuild_colonist_flow_field system
+  components/
+    mod.rs         # Declares submodules, re-exports all shared components
+    movement.rs    # GridPosition, Path, Speed — shared movement components used by both colonists and enemies
+    combat.rs      # Health — shared combat components used by both colonists and enemies
   character/
-    mod.rs         # Declares submodules, re-exports GridPosition, Path, Speed, Colonist, CharacterPlugin
-    characters.rs  # GridPosition, Path, Speed, Colonist components; CharacterPlugin; spawn, movement, and click-to-move systems
+    mod.rs         # Declares submodules, re-exports Colonist, CharacterPlugin
+    characters.rs  # Colonist marker component; CharacterPlugin; spawn, movement, and click-to-move systems
   enemys/
     mod.rs         # Declares submodules, re-exports Enemy and EnemyPlugin
     enemy.rs       # Enemy marker component; EnemyPlugin; spawn and flow-field-driven movement systems
@@ -65,7 +69,7 @@ src/
 
 ### Pathfinding
 
-- **A\* implementation** lives in `ai/a_star.rs` — `find_path` takes a `&Map`, start, and goal as `(u32, u32)` grid coords, returns `Option<Vec<(u32, u32)>>`
+- **A\* implementation** lives in `ai/a_star.rs` — `find_path` takes a `&Map`, start, and goal as `(u32, u32)` grid coords, returns `Option<Vec<(u32, u32)>>` where `None` means no path exists; the vec includes both start and goal; two private helpers: `idx(x, y, width)` converts 2D grid coords to a flat array index, `reconstruct_path(came_from, goal, width)` walks the `came_from` array backwards from goal to start and reverses the result
 - **8-directional movement** with Chebyshev heuristic (`max(dx, dy)`)
 - **Passability** is derived from `TileType` via `is_passable()` — no separate field, so it's always in sync with tile state
 - **Lazy deletion** pattern for the open set — duplicate nodes are allowed in the heap, skipped via `closed_set`; `g_scores` prevents `came_from` being overwritten by worse paths
@@ -98,7 +102,7 @@ src/
 
 ### Characters
 
-- **Components:** `GridPosition((u32, u32))` — authoritative grid position (inner tuple); `Path(VecDeque<(u32,u32)>)` — remaining waypoints; `Speed(f32)` — movement speed in tiles per second; `Colonist` — zero-sized marker, filters colonist-only queries so enemies are never accidentally included
+- **Components:** `GridPosition((u32, u32))` — authoritative grid position (inner tuple), lives in `components/movement.rs`; `Path(VecDeque<(u32,u32)>)` — remaining waypoints, lives in `components/movement.rs`; `Speed(f32)` — movement speed in tiles per second, lives in `components/movement.rs`; `Colonist` — zero-sized marker in `character/characters.rs`, filters colonist-only queries so enemies are never accidentally included
 - **Smooth movement:** `move_character` advances `Transform` toward the next waypoint each frame using `move_towards(target, speed * delta_secs)`; `GridPosition` is only updated when the character arrives at a waypoint (`distance_squared < 0.01`, avoiding a sqrt)
 - **Click-to-move:** `move_to_click` converts cursor window position → world position via `camera.viewport_to_world_2d`, then applies the tilemap centering offset to get grid coordinates, bounds-checks both axes before casting to `u32` (negative cast saturates silently), then calls `find_path`
 - **System ordering:** `move_to_click` is chained before `move_character` via `.chain()` — ensures a click is applied before movement processes that same frame

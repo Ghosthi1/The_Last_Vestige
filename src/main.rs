@@ -6,7 +6,7 @@ mod enemys;
 mod camera;
 mod buildings;
 mod audio;
-
+mod components;
 use bevy::prelude::*;
 use bevy_ecs_tilemap::TilemapPlugin;
 use crate::camera::CameraPlugin;
@@ -25,15 +25,13 @@ fn main() {
         .insert_resource(FlowFields::default())
         .add_plugins((DefaultPlugins.set(ImagePlugin::default_nearest()), TilemapPlugin))
         .add_plugins((EnemySpawnerPlugin, map::MapRendererPlugin, CharacterPlugin, AiPlugin, EnemyPlugin, CameraPlugin, BuildingPlugin, AmbientPlugin))
-        .add_systems(Startup, setup)
         .add_systems(Update, debug)
         .run();
 }
 
-fn setup(mut commands: Commands) {
-    commands.spawn(Camera2d);
-}
-
+////////////////////////////////////////
+/// Creates Lines so the grid is visible
+///////////////////////////////////////
 fn debug(mut gizmos: Gizmos){
     for i in 0..=MAP_WIDTH{
         let x = -(MAP_WIDTH as f32 * TILE_SIZE / 2.0) + i as f32 * TILE_SIZE;

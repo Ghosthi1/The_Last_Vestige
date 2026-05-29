@@ -3,9 +3,10 @@ use bevy_ecs_tilemap::prelude::*;
 use bevy::window::PrimaryWindow;
 use bevy_ecs_tilemap::tiles::{TilePos, TileTextureIndex};
 use crate::ai::{ FlowFields};
-use crate::character::{Colonist, GridPosition, Path};
+use crate::character::{Colonist};
 use crate::constants::TILE_SIZE;
 use crate::map::{Map, TileType};
+use crate::components::movement::{GridPosition, Path};
 
 pub struct BuildingPlugin;
 impl Plugin for BuildingPlugin {

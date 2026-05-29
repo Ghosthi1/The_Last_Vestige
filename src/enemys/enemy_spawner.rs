@@ -1,8 +1,8 @@
 ﻿use bevy::prelude::*;
-use crate::character::{GridPosition, Speed};
 use crate::constants::{ENEMY_SPEED, TILE_SIZE};
 use crate::enemys::Enemy;
 use crate::map::Map;
+use crate::components::movement::{GridPosition, Path, Speed};
 
 pub struct EnemySpawnerPlugin;
 impl Plugin for EnemySpawnerPlugin {

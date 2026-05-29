@@ -4,18 +4,7 @@ use bevy::window::PrimaryWindow;
 use crate::map::Map;
 use crate::ai::a_star::find_path;
 use crate::constants::TILE_SIZE;
-
-/// Current tile coordinates
-#[derive(Component)]
-pub struct GridPosition(pub(u32, u32));
-
-/// Path to the target
-#[derive(Component)]
-pub struct Path (pub VecDeque<(u32,u32)>);
-
-/// The movement speed in tiles per second
-#[derive(Component)]
-pub struct Speed (pub f32);
+use crate::components::movement::{GridPosition, Path, Speed};
 
 /// Tags the character
 #[derive(Component)]
