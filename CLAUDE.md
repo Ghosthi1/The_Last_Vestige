@@ -33,7 +33,7 @@ src/
   constants.rs     # Shared constants — TILE_SIZE, MAP_WIDTH, MAP_HEIGHT, OFFSETS, ENEMY_SPEED, ENEMY_STOP_RADIUS, ENEMY_SEPARATION_STRENGTH
   map/
     mod.rs         # Declares submodules, re-exports Map, TileData, TileType, MapRendererPlugin
-    map.rs         # TileType, TileData, Map struct and constructor — no generation logic
+    map.rs         # TileType, TileData, Map struct and constructor — no generation logic; cursor_to_grid(camera, camera_transform, cursor_pos, map) shared utility
     map_gen.rs     # Map generation logic
     map_renderer.rs # Spawns and manages bevy_ecs_tilemap entities from Map resource
   ai/
@@ -51,6 +51,9 @@ src/
   enemys/
     mod.rs         # Declares submodules, re-exports Enemy and EnemyPlugin
     enemy.rs       # Enemy marker component; EnemyPlugin; spawn and flow-field-driven movement systems
+  buildings/
+    mod.rs         # Declares submodules, re-exports BuildingPlugin, TileChangedEvent
+    buildings.rs   # BuildingPlugin; TileChangedEvent; place_wall_on_click, on_tile_change, on_tile_passability_change systems
   Systems/
     mod.rs         # Declares camera and ambient submodules, re-exports both
     camera.rs      # CameraPlugin; zoom_camera (scroll wheel, multiplicative scale on OrthographicProjection); pan_camera (middle mouse drag, delta scaled by ortho.scale)
@@ -102,7 +105,7 @@ src/
 
 - **Components:** `GridPosition((u32, u32))` — authoritative grid position (inner tuple), lives in `components/movement.rs`; `Path(VecDeque<(u32,u32)>)` — remaining waypoints, lives in `components/movement.rs`; `Speed(f32)` — movement speed in tiles per second, lives in `components/movement.rs`; `Colonist` — zero-sized marker in `character/characters.rs`, filters colonist-only queries so enemies are never accidentally included
 - **Smooth movement:** `move_character` advances `Transform` toward the next waypoint each frame using `move_towards(target, speed * delta_secs)`; `GridPosition` is only updated when the character arrives at a waypoint (`distance_squared < 0.01`, avoiding a sqrt)
-- **Click-to-move:** `move_to_click` converts cursor window position → world position via `camera.viewport_to_world_2d`, then applies the tilemap centering offset to get grid coordinates, bounds-checks both axes before casting to `u32` (negative cast saturates silently), then calls `find_path`
+- **Click-to-move:** `move_to_click` calls `cursor_to_grid` (shared utility in `map/map.rs`) to convert cursor window position → grid coordinates, then calls `find_path`
 - **System ordering:** `move_to_click` is chained before `move_character` via `.chain()` — ensures a click is applied before movement processes that same frame
 - **Tilemap offset:** the tilemap is centered on screen — tile world position = `tile_coord * TILE_SIZE + TILE_SIZE/2 - map_size * TILE_SIZE/2`; this places entities at the **center** of each tile; all coordinate conversions must account for this
 - **Loop-invariant hoisting:** map offset values (`width/height * TILE_SIZE/2`) are computed once before the character loop in `move_character`, not per-iteration
@@ -118,6 +121,15 @@ src/
 - **Query disjointness** — `move_enemy` accesses `&mut Transform` for enemies and `&Transform` for colonists; Bevy requires explicit `Without<Colonist>` on the enemy query and `Without<Enemy>` on the colonist query to prove they never overlap, otherwise it panics with `B0001` at startup
 - **System ordering:** `separate_enemies.before(move_enemy)`, `move_enemy.after(rebuild_colonist_flow_field)` — separation is applied before flow-field movement each frame; flow field is always current before enemies read it
 - **Spawn:** `spawn_enemy` takes `AssetServer` as a parameter; the texture handle must be `.clone()`d for every spawn call since `Handle<Image>` is moved on first use; `GridPosition` and `Transform` must be initialised from the same grid coordinates
+
+### Buildings
+
+- **`BuildingPlugin`** lives in `buildings/buildings.rs` — registers `TileChangedEvent` and three systems: `place_wall_on_click`, `on_tile_change`, `on_tile_passability_change`
+- **`TileChangedEvent { x, y }`** — fired whenever a tile's type changes; all downstream reactions (visuals, pathfinding) are driven by listeners on this event rather than being inlined at the change site
+- **`place_wall_on_click`** — handles left-click input only; converts cursor to grid via `cursor_to_grid`, mutates `Map`, fires `TileChangedEvent`; no pathfinding or rendering logic
+- **`on_tile_change`** — visual listener; updates `TileTextureIndex` on the tilemap entity for the changed tile; `TileStorage::single()` is resolved once before the event loop
+- **`on_tile_passability_change`** — pathfinding listener; rebuilds the colonist flow field once per frame (regardless of how many tile-change events fired), then clears any colonist `Path` that contains the changed tile coordinate; uses `Local<Vec<(u32,u32)>>` as a reusable positions buffer
+- **`cursor_to_grid`** — shared utility in `map/map.rs`; takes `&Camera`, `&GlobalTransform`, `Vec2` cursor pos, `&Map`; returns `Option<(u32, u32)>`; used by both `place_wall_on_click` and `move_to_click` in `characters.rs`
 
 ### Rendering
 
@@ -141,7 +153,7 @@ src/
 
 - **Hybrid approach:** map data lives in a `Resource` (flat array, indexed `x + y * width`), visuals are entities/tilemap, dynamic actors (colonists, enemies, buildings) are entities with grid position components
 - **Tiles are destructible and buildable** — walls can be broken by players and enemies, floors can be built on
-- **Tile changes:** mutate the map resource → fire a `TileChangedEvent { x, y }` → listener updates visuals and pathfinding
+- **Tile changes:** mutate the map resource → fire `TileChangedEvent { x, y }` → two listeners react: `on_tile_change` updates the tilemap visual (texture index), `on_tile_passability_change` rebuilds the colonist flow field and clears any colonist `Path` that passes through the changed tile; adding new tile-change sources (enemy wall breaks, deconstruction) only requires firing the event — listeners handle all downstream effects automatically
 - **Grid coordinates are the source of truth for colonists** — colonist `Transform` is derived from `GridPosition`; for enemies the relationship is reversed: `Transform` is authoritative and `GridPosition` is derived from it each frame to support continuous swarming movement
 - **Parallel arrays for rare data:** primary array holds only hot data (tile type, passability); oxygen, temperature, etc. live in separate resources indexed the same way for cache efficiency; truly sparse properties (affects <~5% of tiles) use `HashMap<(u32, u32), T>` instead
 - **Keep `TileData` lean** — start small, add parallel resources only when actually needed
