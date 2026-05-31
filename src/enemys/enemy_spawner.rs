@@ -1,5 +1,6 @@
 ﻿use bevy::prelude::*;
-use crate::constants::{ENEMY_SPEED, TILE_SIZE};
+use crate::components::Health;
+use crate::constants::{ENEMY_HEALTH, ENEMY_SPEED, TILE_SIZE};
 use crate::enemys::Enemy;
 use crate::map::Map;
 use crate::components::movement::{GridPosition, Path, Speed};
@@ -17,6 +18,7 @@ fn spawn_enemy(mut commands: Commands, map: Res<Map>, asset_server: Res<AssetSer
     commands.spawn((
         Enemy,
         GridPosition((25,25)),
+        Health::new(ENEMY_HEALTH),
         Speed(ENEMY_SPEED),
         Sprite {
             image: texture.clone(),
@@ -33,6 +35,7 @@ fn spawn_enemy(mut commands: Commands, map: Res<Map>, asset_server: Res<AssetSer
     commands.spawn((
         Enemy,
         GridPosition((27,27)),
+        Health::new(ENEMY_HEALTH),
         Speed(ENEMY_SPEED),
         Sprite {
             image: texture.clone(),
@@ -49,6 +52,7 @@ fn spawn_enemy(mut commands: Commands, map: Res<Map>, asset_server: Res<AssetSer
     commands.spawn((
         Enemy,
         GridPosition((30,25)),
+        Health::new(ENEMY_HEALTH),
         Speed(ENEMY_SPEED),
         Sprite {
             image: texture.clone(),

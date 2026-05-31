@@ -30,7 +30,7 @@ Files have specific, focused responsibilities — keep things clean and tidy. On
 ```
 src/
   main.rs          # App entry point, startup systems
-  constants.rs     # Shared constants — TILE_SIZE, MAP_WIDTH, MAP_HEIGHT, OFFSETS, ENEMY_SPEED, ENEMY_STOP_RADIUS, ENEMY_SEPARATION_STRENGTH
+  constants.rs     # Shared constants — TILE_SIZE, MAP_WIDTH, MAP_HEIGHT, OFFSETS, ENEMY_SPEED, ENEMY_STOP_RADIUS, ENEMY_SEPARATION_STRENGTH, ENEMY_HEALTH, COLONIST_HEALTH, COLONIST_SPEED
   map/
     mod.rs         # Declares submodules, re-exports Map, TileData, TileType, MapRendererPlugin
     map.rs         # TileType, TileData, Map struct and constructor — no generation logic; cursor_to_grid(camera, camera_transform, cursor_pos, map) shared utility
@@ -44,13 +44,14 @@ src/
   components/
     mod.rs         # Declares submodules, re-exports all shared components
     movement.rs    # GridPosition, Path, Speed — shared movement components used by both colonists and enemies
-    combat.rs      # Health — shared combat components used by both colonists and enemies
+    combat.rs      # Health component — private current/max f32 fields; new(max), change_health(delta), is_dead(); used by both colonists and enemies
   character/
     mod.rs         # Declares submodules, re-exports Colonist, CharacterPlugin
     characters.rs  # Colonist marker component; CharacterPlugin; spawn, movement, and click-to-move systems
   enemys/
-    mod.rs         # Declares submodules, re-exports Enemy and EnemyPlugin
-    enemy.rs       # Enemy marker component; EnemyPlugin; spawn and flow-field-driven movement systems
+    mod.rs         # Declares submodules, re-exports Enemy, EnemyPlugin, EnemySpawnerPlugin
+    enemy.rs       # Enemy marker component; EnemyPlugin; flow-field-driven movement systems (move_enemy, separate_enemies)
+    enemy_spawner.rs # EnemySpawnerPlugin; spawn_enemy Startup system — spawns enemies with Enemy, GridPosition, Health, Speed, Sprite, Transform
   buildings/
     mod.rs         # Declares submodules, re-exports BuildingPlugin, TileChangedEvent
     buildings.rs   # BuildingPlugin; TileChangedEvent; place_wall_on_click, on_tile_change, on_tile_passability_change systems
@@ -101,9 +102,18 @@ src/
 - **Rebuild trigger:** `GridPosition` is written in `move_character` (`grid_pos.0 = *next`) when a colonist arrives at a waypoint — this marks the component changed and fires the rebuild system that frame
 - **Layer design:** `FlowFields` fields represent targets things navigate *toward* — `colonists` means "goal is colonist positions, used by enemies"; colonists themselves use A* for player-directed movement; layers are accessed directly by field name (`flow_fields.colonists`) rather than via `FlowLayer` dispatch
 
+### Combat
+
+- **`Health` component** — lives in `components/combat.rs`; private `current: f32` and `max: f32` fields; constructed via `Health::new(max)` which sets `current = max` and `debug_assert!`s `max > 0.0`; fields are private so all access goes through methods
+- **`change_health(delta: f32)`** — adds `delta` to `current` (negative for damage, positive for healing); clamps `current` to `[0.0, max]`; when `current` hits `0.0` the entity is considered dead — a TODO marks where a `Dead` marker component should be inserted
+- **`is_dead() -> bool`** — returns `self.current <= 0.0`; intended to be called by an external system that queries for dead entities and handles despawning, tile events, and animations — `Health` itself cannot interact with the world
+- **Death handling pattern** — `Health` is pure data; death detection belongs in a system that queries entities with `Health`, calls `is_dead()`, and inserts a `Dead` marker component; downstream systems (`Without<Dead>` on movement, a cleanup system `With<Dead>`) react to the marker — not yet implemented
+- **`Dead` marker component** — not yet added; will be a zero-sized component in `components/combat.rs` alongside `Health`; used to filter dead entities out of movement/AI queries and into cleanup/animation systems
+
 ### Characters
 
-- **Components:** `GridPosition((u32, u32))` — authoritative grid position (inner tuple), lives in `components/movement.rs`; `Path(VecDeque<(u32,u32)>)` — remaining waypoints, lives in `components/movement.rs`; `Speed(f32)` — movement speed in tiles per second, lives in `components/movement.rs`; `Colonist` — zero-sized marker in `character/characters.rs`, filters colonist-only queries so enemies are never accidentally included
+- **Components:** `GridPosition((u32, u32))` — authoritative grid position (inner tuple), lives in `components/movement.rs`; `Path(VecDeque<(u32,u32)>)` — remaining waypoints, lives in `components/movement.rs`; `Speed(f32)` — movement speed in tiles per second, lives in `components/movement.rs`; `Health` — current/max health, lives in `components/combat.rs`; `Colonist` — zero-sized marker in `character/characters.rs`, filters colonist-only queries so enemies are never accidentally included
+- **Colonist bundle:** `Colonist`, `GridPosition`, `Health::new(COLONIST_HEALTH)`, `Speed(COLONIST_SPEED)`, `Sprite`, `Transform`, `Path` — `COLONIST_HEALTH` and `COLONIST_SPEED` are constants in `constants.rs`
 - **Smooth movement:** `move_character` advances `Transform` toward the next waypoint each frame using `move_towards(target, speed * delta_secs)`; `GridPosition` is only updated when the character arrives at a waypoint (`distance_squared < 0.01`, avoiding a sqrt)
 - **Click-to-move:** `move_to_click` calls `cursor_to_grid` (shared utility in `map/map.rs`) to convert cursor window position → grid coordinates, then calls `find_path`; start position is `path.0.front()` if a path is already in progress, otherwise `grid_pos.0` — this keeps movement smooth mid-path by continuing from the current waypoint rather than snapping back to the grid position
 - **System ordering:** `move_to_click` is chained before `move_character` via `.chain()` — ensures a click is applied before movement processes that same frame
@@ -120,7 +130,7 @@ src/
 - **Axis-separated wall collision** — both `move_enemy` and `separate_enemies` apply movement one axis at a time; before adding a delta to `transform.translation.x`, a test position `(current_pos + Vec2::new(delta_x, 0.0))` is passed to `tile_at`; if it returns `None` (wall or out of bounds) the x movement is skipped; same check independently for y; this prevents enemies being pushed into walls by separation forces while still allowing sliding along wall faces — the `tile_at` helper in `enemy.rs` converts a world `Vec2` to a tile coordinate, returning `None` if out of bounds or impassable
 - **Query disjointness** — `move_enemy` accesses `&mut Transform` for enemies and `&Transform` for colonists; Bevy requires explicit `Without<Colonist>` on the enemy query and `Without<Enemy>` on the colonist query to prove they never overlap, otherwise it panics with `B0001` at startup
 - **System ordering:** `separate_enemies.before(move_enemy)`, `move_enemy.after(rebuild_colonist_flow_field)` — separation is applied before flow-field movement each frame; flow field is always current before enemies read it
-- **Spawn:** `spawn_enemy` takes `AssetServer` as a parameter; the texture handle must be `.clone()`d for every spawn call since `Handle<Image>` is moved on first use; `GridPosition` and `Transform` must be initialised from the same grid coordinates
+- **Spawn:** `spawn_enemy` lives in `enemy_spawner.rs` under `EnemySpawnerPlugin`; enemy bundle is `Enemy`, `GridPosition`, `Health::new(ENEMY_HEALTH)`, `Speed(ENEMY_SPEED)`, `Sprite`, `Transform`; texture handle must be `.clone()`d for every spawn call since `Handle<Image>` is moved on first use; `GridPosition` and `Transform` must be initialised from the same grid coordinates; `ENEMY_HEALTH` is a constant in `constants.rs`
 
 ### Buildings
 

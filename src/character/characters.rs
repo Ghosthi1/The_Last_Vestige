@@ -3,7 +3,8 @@ use std::collections::VecDeque;
 use bevy::window::PrimaryWindow;
 use crate::map::Map;
 use crate::ai::a_star::find_path;
-use crate::constants::TILE_SIZE;
+use crate::components::Health;
+use crate::constants::{COLONIST_HEALTH, COLONIST_SPEED, TILE_SIZE};
 use crate::components::movement::{GridPosition, Path, Speed};
 use crate::map::cursor_to_grid;
 
@@ -26,8 +27,8 @@ fn spawn_character(mut commands: Commands, map: Res<Map>, asset_server: Res<Asse
     commands.spawn((
         Colonist,
         GridPosition((30,30)),
-        Path(VecDeque::new()),
-        Speed(50.0),
+        Health::new(COLONIST_HEALTH),
+        Speed(COLONIST_SPEED),
         Sprite {
             image: texture,
             custom_size: Some(Vec2::splat(TILE_SIZE)),
@@ -38,7 +39,8 @@ fn spawn_character(mut commands: Commands, map: Res<Map>, asset_server: Res<Asse
             30.0 * TILE_SIZE + TILE_SIZE / 2.0 - map.width as f32 * TILE_SIZE / 2.0,
             30.0 * TILE_SIZE + TILE_SIZE / 2.0 - map.height as f32 * TILE_SIZE / 2.0,
             1.0
-        )
+        ),
+        Path(VecDeque::new()),
     ));}
 
 /// Moves towards the next waypoint in the path smoothly each frame
