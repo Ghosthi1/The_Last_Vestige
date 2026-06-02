@@ -85,9 +85,33 @@ fn move_to_click(mouse: Res<ButtonInput<MouseButton>>,
     let Ok((camera, camera_transform)) = camera.single() else { return; };
     let Some((goal_x, goal_y)) = cursor_to_grid(camera, camera_transform, cursor_pos, &map)else { return };
     let goal = (goal_x, goal_y);
+
+    let mut occupied: HashSet<(u32, u32)> = characters.iter().map(|(grid_pos, path)|  grid_pos.0).collect();
+
     for (grid_pos, mut path) in characters.iter_mut() {
         let start = path.0.front().copied().unwrap_or(grid_pos.0);
-        path.0 = find_path(&map, start, goal).unwrap_or_default().into();
+        let mut free_neighbor: Option<(u32, u32)> = None;
+
+        if occupied.contains(&goal){
+            for (dx,dy) in OFFSETS{
+                let neighbor = (goal.0 as i32 + dx , goal.1 as i32 + dy);
+                let neighbor_u32: (u32, u32);
+                if neighbor.0 < 0 || neighbor.1 < 0{
+                    continue;
+                }
+                neighbor_u32 = (neighbor.0 as u32 , neighbor.1 as u32);
+                if neighbor_u32.0 >= map.width || neighbor_u32.1 >= map.height{
+                    continue
+                }
+                if map.get(neighbor_u32.0, neighbor_u32.1).tile_type.is_passable() && !occupied.contains(&neighbor_u32){
+                    free_neighbor = Some(neighbor_u32);
+                    break
+                }
+            }
+        }
+        let actual_goal = free_neighbor.unwrap_or(goal);
+        path.0 = find_path(&map, start, actual_goal).unwrap_or_default().into();
+        occupied.insert(actual_goal);
     }
 }
 
