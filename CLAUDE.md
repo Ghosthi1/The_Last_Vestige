@@ -30,7 +30,7 @@ Files have specific, focused responsibilities — keep things clean and tidy. On
 ```
 src/
   main.rs          # App entry point, startup systems
-  constants.rs     # Shared constants — TILE_SIZE, MAP_WIDTH, MAP_HEIGHT, OFFSETS, ENEMY_SPEED, ENEMY_STOP_RADIUS, ENEMY_SEPARATION_STRENGTH, ENEMY_HEALTH, COLONIST_HEALTH, COLONIST_SPEED
+  constants.rs     # Shared constants — TILE_SIZE, MAP_WIDTH, MAP_HEIGHT, OFFSETS, ENEMY_SPEED, ENEMY_STOP_RADIUS, ENEMY_SEPARATION_STRENGTH, ENEMY_HEALTH, ENEMY_RANGE, ENEMY_DAMAGE, COLONIST_HEALTH, COLONIST_SPEED, COLONIST_RANGE, COLONIST_DAMAGE
   map/
     mod.rs         # Declares submodules, re-exports Map, TileData, TileType, MapRendererPlugin
     map.rs         # TileType, TileData, Map struct and constructor — no generation logic; cursor_to_grid(camera, camera_transform, cursor_pos, map) shared utility
@@ -44,9 +44,9 @@ src/
   components/
     mod.rs         # Declares submodules, re-exports all shared components
     movement.rs    # GridPosition, Path, Speed — shared movement components used by both colonists and enemies
-    combat.rs      # Health component — private current/max f32 fields; new(max), change_health(delta), is_dead(); used by both colonists and enemies
-  character/
-    mod.rs         # Declares submodules, re-exports Colonist, CharacterPlugin
+    combat.rs      # Health component — private current/max f32 fields; new(max), change_health(delta), is_dead(); Attacker component — damage/range/cooldown, new(damage, range, timer); Target(Option<Entity>) tuple struct — colonist-only, holds player-assigned attack target
+  colonists/
+    mod.rs         # Declares submodules, re-exports Colonist, CharacterPlugin, ColonistSpawnerPlugin, SelectionPlugin
     characters.rs  # Colonist marker component; CharacterPlugin; separate_colonists, move_character, move_to_click systems; tile_at helper
   enemys/
     mod.rs         # Declares submodules, re-exports Enemy, EnemyPlugin, EnemySpawnerPlugin
@@ -59,6 +59,9 @@ src/
     mod.rs         # Declares camera and sound submodules, re-exports both
     camera.rs      # CameraPlugin; setup (Startup — spawns Camera2d); zoom_camera (scroll wheel, multiplicative scale on OrthographicProjection); pan_camera (middle mouse drag, delta scaled by ortho.scale)
     sound.rs       # AmbientPlugin; startup system that loads and spawns the looping ambient audio entity
+  combat/
+    mod.rs         # Declares submodule, re-exports CombatPlugin
+    combat.rs      # CombatPlugin; enemy_attack system (nearest colonist auto-targeting); colonist_attack system (spot mode via Target or passive nearest-enemy-in-range)
 ```
 
 ### Assets
@@ -109,11 +112,15 @@ src/
 - **`is_dead() -> bool`** — returns `self.current <= 0.0`; intended to be called by an external system that queries for dead entities and handles despawning, tile events, and animations — `Health` itself cannot interact with the world
 - **Death handling pattern** — `Health` is pure data; death detection belongs in a system that queries entities with `Health`, calls `is_dead()`, and inserts a `Dead` marker component; downstream systems (`Without<Dead>` on movement, a cleanup system `With<Dead>`) react to the marker — not yet implemented
 - **`Dead` marker component** — not yet added; will be a zero-sized component in `components/combat.rs` alongside `Health`; used to filter dead entities out of movement/AI queries and into cleanup/animation systems
+- **`Attacker` component** — lives in `components/combat.rs`; private `damage: f32`, `range: f32`, `cooldown: Timer` fields; constructed via `Attacker::new(damage, range, timer)`; range is in world units (multiply tile counts by `TILE_SIZE`); cooldown is a `Timer::from_seconds(n, TimerMode::Repeating)` — ticked every frame regardless of range so the first hit after closing distance doesn't fire instantly; both colonists and enemies carry this component
+- **`Target` component** — lives in `components/combat.rs`; tuple struct `Target(pub Option<Entity>)`; colonist-only; `None` = passive mode (attack nearest enemy in range), `Some(entity)` = spot mode (wait for that specific enemy to enter range); stale entity handling not yet implemented — if the target entity is despawned, `Target` should be cleared to `None` (TODO)
+- **`enemy_attack` system** — lives in `combat/combat.rs`; snapshots all colonist positions into `Vec<(Entity, Vec2)>` before the enemy loop; for each enemy ticks the timer, finds nearest colonist by distance squared, attacks if within `range * range` and `just_finished()`; uses `colonists.get_mut(entity)` for the damage call; query disjoint guards: `Without<Colonist>` on enemy query, `Without<Enemy>` on colonist query
+- **`colonist_attack` system** — lives in `combat/combat.rs`; snapshots all enemy positions into `Vec<(Entity, Vec2)>` before the colonist loop; matches on `target.0`: `Some(entity)` looks up the target in the snapshot for distance then calls `enemy_query.get_mut` for damage; `None` finds nearest enemy in the snapshot same as `enemy_attack`; snapshot used for position lookup in `Some` arm to avoid double-borrowing `enemy_query` (immutable get + mutable get_mut in same scope)
 
 ### Characters
 
 - **Components:** `GridPosition((u32, u32))` — authoritative grid position (inner tuple), lives in `components/movement.rs`; `Path(VecDeque<(u32,u32)>)` — remaining waypoints, lives in `components/movement.rs`; `Speed(f32)` — movement speed in tiles per second, lives in `components/movement.rs`; `Health` — current/max health, lives in `components/combat.rs`; `Colonist` — zero-sized marker in `character/characters.rs`, filters colonist-only queries so enemies are never accidentally included
-- **Colonist bundle:** `Colonist`, `GridPosition`, `Health::new(COLONIST_HEALTH)`, `Speed(COLONIST_SPEED)`, `Sprite`, `Transform`, `Path` — `COLONIST_HEALTH` and `COLONIST_SPEED` are constants in `constants.rs`
+- **Colonist bundle:** `Colonist`, `GridPosition`, `Health::new(COLONIST_HEALTH)`, `Speed(COLONIST_SPEED)`, `Sprite`, `Transform`, `Path`, `Attacker::new(COLONIST_DAMAGE, COLONIST_RANGE, Timer)`, `Target(None)` — constants in `constants.rs`
 - **Smooth movement:** `move_character` advances `Transform` toward the next waypoint each frame using `move_towards(target, speed * delta_secs)`; `GridPosition` is only updated when the character arrives at a waypoint (`distance_squared < 0.01`, avoiding a sqrt); `transform.translation` is only snapped to the tile center on normal arrival — not in the conflict branch, so the transform never visually lands on an occupied tile
 - **Click-to-move:** `move_to_click` calls `cursor_to_grid` (shared utility in `map/map.rs`) to convert cursor window position → grid coordinates; start position is `path.0.front()` if a path is already in progress, otherwise `grid_pos.0` — keeps movement smooth mid-path by continuing from the current waypoint rather than snapping back to grid position
 - **Click-time goal assignment:** before the assignment loop, `move_to_click` snapshots all colonist `GridPosition`s into a `mut HashSet<(u32, u32)>`; for each colonist, if the clicked goal is already in the set, searches 8 neighbours of the goal for a free passable tile; uses `actual_goal` (the neighbour, or the original goal if free) for `find_path`; inserts `actual_goal` into the set so subsequent colonists in the same click get distinct targets — prevents multiple colonists converging on the same world position
@@ -135,7 +142,7 @@ src/
 - **Axis-separated wall collision** — both `move_enemy` and `separate_enemies` apply movement one axis at a time; before adding a delta to `transform.translation.x`, a test position `(current_pos + Vec2::new(delta_x, 0.0))` is passed to `tile_at`; if it returns `None` (wall or out of bounds) the x movement is skipped; same check independently for y; this prevents enemies being pushed into walls by separation forces while still allowing sliding along wall faces — the `tile_at` helper in `enemy.rs` converts a world `Vec2` to a tile coordinate, returning `None` if out of bounds or impassable
 - **Query disjointness** — `move_enemy` accesses `&mut Transform` for enemies and `&Transform` for colonists; Bevy requires explicit `Without<Colonist>` on the enemy query and `Without<Enemy>` on the colonist query to prove they never overlap, otherwise it panics with `B0001` at startup
 - **System ordering:** `separate_enemies.before(move_enemy)`, `move_enemy.after(rebuild_colonist_flow_field)` — separation is applied before flow-field movement each frame; flow field is always current before enemies read it
-- **Spawn:** `spawn_enemy` lives in `enemy_spawner.rs` under `EnemySpawnerPlugin`; enemy bundle is `Enemy`, `GridPosition`, `Health::new(ENEMY_HEALTH)`, `Speed(ENEMY_SPEED)`, `Sprite`, `Transform`; texture handle must be `.clone()`d for every spawn call since `Handle<Image>` is moved on first use; `GridPosition` and `Transform` must be initialised from the same grid coordinates; `ENEMY_HEALTH` is a constant in `constants.rs`
+- **Spawn:** `spawn_enemy` lives in `enemy_spawner.rs` under `EnemySpawnerPlugin`; enemy bundle is `Enemy`, `GridPosition`, `Health::new(ENEMY_HEALTH)`, `Speed(ENEMY_SPEED)`, `Sprite`, `Transform`, `Attacker::new(ENEMY_DAMAGE, ENEMY_RANGE, Timer)`; texture handle must be `.clone()`d for every spawn call since `Handle<Image>` is moved on first use; `GridPosition` and `Transform` must be initialised from the same grid coordinates; constants in `constants.rs`
 
 ### Buildings
 

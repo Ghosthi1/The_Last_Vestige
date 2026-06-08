@@ -1,8 +1,8 @@
 ﻿use std::collections::VecDeque;
 use bevy::prelude::*;
 use crate::colonists::Colonist;
-use crate::components::{GridPosition, Health, Path, Speed};
-use crate::constants::{COLONIST_HEALTH, COLONIST_SPEED, TILE_SIZE};
+use crate::components::{Attacker, GridPosition, Health, Path, Speed, Target};
+use crate::constants::{COLONIST_DAMAGE, COLONIST_HEALTH, COLONIST_RANGE, COLONIST_SPEED, TILE_SIZE};
 use crate::map::Map;
 
 pub struct ColonistSpawnerPlugin;
@@ -31,6 +31,8 @@ fn spawn_colonist(mut commands: Commands, map: Res<Map>, asset_server: Res<Asset
             1.0
         ),
         Path(VecDeque::new()),
+        Attacker::new(COLONIST_DAMAGE, COLONIST_RANGE, Timer::from_seconds(1.0, TimerMode::Repeating)),
+        Target(None),
     ));
     commands.spawn((
         Colonist,
@@ -49,5 +51,7 @@ fn spawn_colonist(mut commands: Commands, map: Res<Map>, asset_server: Res<Asset
             1.0
         ),
         Path(VecDeque::new()),
+        Attacker::new(COLONIST_DAMAGE, COLONIST_RANGE, Timer::from_seconds(1.0, TimerMode::Repeating)),
+        Target(None),
     ));
 }

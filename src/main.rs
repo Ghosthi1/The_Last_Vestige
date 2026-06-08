@@ -6,6 +6,7 @@ mod enemys;
 mod buildings;
 mod components;
 mod systems;
+mod combat;
 
 use bevy::prelude::*;
 use bevy_ecs_tilemap::TilemapPlugin;
@@ -19,6 +20,7 @@ use crate::systems::AmbientPlugin;
 use crate::systems::CameraPlugin;
 use crate::colonists::ColonistSpawnerPlugin;
 use crate::colonists::SelectionPlugin;
+use crate::combat::CombatPlugin;
 
 fn main() {
     App::new()
@@ -26,8 +28,8 @@ fn main() {
         .insert_resource(map::MapOffset { offset: Vec2::new(-( MAP_WIDTH as f32 * TILE_SIZE/2.0), -(MAP_HEIGHT as f32* TILE_SIZE/2.0)) })
         .insert_resource(FlowFields::default())
         .add_plugins((DefaultPlugins.set(ImagePlugin::default_nearest()), TilemapPlugin))
-        .add_plugins((EnemySpawnerPlugin,ColonistSpawnerPlugin, map::MapRendererPlugin, CharacterPlugin,
-                      AiPlugin, EnemyPlugin, CameraPlugin, BuildingPlugin, AmbientPlugin, SelectionPlugin))
+        .add_plugins((EnemySpawnerPlugin, ColonistSpawnerPlugin, map::MapRendererPlugin, CharacterPlugin,
+                      AiPlugin, EnemyPlugin, CameraPlugin, BuildingPlugin, AmbientPlugin, SelectionPlugin, CombatPlugin))
         .add_systems(Update, debug)
         .run();
 }

@@ -5,7 +5,6 @@ pub struct Health {
     current: f32,
     max: f32,
 }
-
 impl Health {
     /// Assigns the max health of the entity
     pub fn new(max: f32) -> Self {
@@ -30,5 +29,19 @@ impl Health {
     pub fn is_dead(&self) -> bool{
         self.current <= 0.0
     }
-
 }
+
+#[derive(Component)]
+pub struct Attacker{
+    pub damage: f32,
+    pub range: f32,
+    pub cooldown: Timer
+}
+impl Attacker {
+    pub fn new(damage: f32, range:f32, cooldown: Timer) -> Self {
+        Self{damage, range, cooldown}
+    }
+}
+
+#[derive(Component)]
+pub struct Target(pub Option<Entity>);

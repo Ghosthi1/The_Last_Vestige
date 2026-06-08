@@ -1,6 +1,6 @@
 ﻿use bevy::prelude::*;
-use crate::components::Health;
-use crate::constants::{ENEMY_HEALTH, ENEMY_SPEED, TILE_SIZE};
+use crate::components::{Attacker, Health};
+use crate::constants::{ENEMY_DAMAGE, ENEMY_HEALTH, ENEMY_RANGE, ENEMY_SPEED, TILE_SIZE};
 use crate::enemys::Enemy;
 use crate::map::Map;
 use crate::components::movement::{GridPosition, Speed};
@@ -30,7 +30,8 @@ fn spawn_enemy(mut commands: Commands, map: Res<Map>, asset_server: Res<AssetSer
             25.0 * TILE_SIZE - map.width as f32 * TILE_SIZE/2.0,
             25.0 * TILE_SIZE - map.height as f32 * TILE_SIZE/2.0,
             1.0
-        )
+        ),
+        Attacker::new(ENEMY_DAMAGE, ENEMY_RANGE, Timer::from_seconds(1.0, TimerMode::Repeating))
     ));
     commands.spawn((
         Enemy,
@@ -47,7 +48,8 @@ fn spawn_enemy(mut commands: Commands, map: Res<Map>, asset_server: Res<AssetSer
             27.0 * TILE_SIZE - map.width as f32 * TILE_SIZE/2.0,
             27.0 * TILE_SIZE - map.height as f32 * TILE_SIZE/2.0,
             1.0
-        )
+        ),
+        Attacker::new(ENEMY_DAMAGE, ENEMY_RANGE, Timer::from_seconds(1.0, TimerMode::Repeating))
     ));
     commands.spawn((
         Enemy,
@@ -64,7 +66,8 @@ fn spawn_enemy(mut commands: Commands, map: Res<Map>, asset_server: Res<AssetSer
             30.0 * TILE_SIZE - map.width as f32 * TILE_SIZE/2.0,
             25.0 * TILE_SIZE - map.height as f32 * TILE_SIZE/2.0,
             1.0
-        )
+        ),
+        Attacker::new(ENEMY_DAMAGE, ENEMY_RANGE, Timer::from_seconds(1.0, TimerMode::Repeating))
     ));
 
 }
