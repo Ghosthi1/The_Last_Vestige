@@ -184,6 +184,18 @@ src/
 - **Grid overlay deferred** — a `PrimitiveTopology::LineList` mesh is the right approach; build it once the chunk/expansion system exists so the mesh update hook has something to connect to
 - **`MapOffset` is fragile** — currently hardcoded in `main.rs` with the map size baked in; will break when the map expands. Revisit when the chunk/expansion system is built — the offset should be derived from map state, not set once at startup
 
+## Bevy 0.19 Upgrade Notes
+
+Staying on Bevy 0.18.1 for now. **Blocker:** `bevy_ecs_tilemap` 0.18.1 depends on `bevy ^0.18.0` and will not resolve against 0.19 — wait for a `bevy_ecs_tilemap` 0.19 release before upgrading. Check [crates.io/crates/bevy_ecs_tilemap](https://crates.io/crates/bevy_ecs_tilemap).
+
+Breaking changes to action when upgrading:
+
+- **Audio feature no longer implied** — `bevy/2d` no longer pulls in audio; add `audio` to the `bevy` features list in `Cargo.toml` explicitly or `ambient_spaceship.ogg` will silently stop playing
+- **Resources as Components** — resources are now stored as entities internally; broad queries like `Query<()>` can conflict with resource access; add `Without<IsResource>` filters if the compiler or Bevy panics with ambiguity errors; most targeted queries (e.g. `Query<&mut Transform, With<Enemy>>`) are unaffected
+- **`Assets::get_mut` return type changed** — now returns `AssetMut<A>` instead of `&mut Asset`; any code that calls `.get_mut()` on an `Assets<T>` resource will need updating; modified events are now only fired on actual changes rather than every call
+- **Scene system renamed** — `bevy_scene` → `bevy_world_serialization`; `Scene` → `WorldAsset`, `SceneRoot` → `WorldAssetRoot`; not currently used in this project but will matter when scenes are added
+- **Rendering pipeline overhaul** — render graph now uses the system scheduler; `shadow_pass` split into `per_view_shadow_pass` and `shared_shadow_pass`; `ViewTarget` output now returns `Option`; no custom render code in this project so impact is low, but double-check `map_renderer.rs` if anything render-related breaks
+
 ## Documentation Standards
 
 - Use `///` doc comments on all `pub` structs, enums, and methods — these show in IDE tooltips and `cargo doc`
@@ -202,3 +214,12 @@ Claude should **never write code** with the exception of claude.md. Only explain
 - **Flag working-but-suboptimal code** — if something works but is inefficient or could be done more sensibly, say so
 - **Wait for the developer to drive** — don't suggest next steps or features unprompted
 - **Warn about bad designs early** — if a design direction will cause pain (especially Bevy ECS anti-patterns common in colony/sim games e.g. storing too much state in single entities, overusing Resources instead of Components), raise it before they build too far
+
+## Planned Features / TODO
+
+- **Sprite animations** — animate colonist and enemy sprites using Bevy's `AnimationClip` / `AnimationPlayer` or a spritesheet atlas index approach; each entity type needs idle, walk, attack, and death states
+- **Sprite sheets** — create and wire up spritesheet assets for every sprite in the game (colonists, enemies, buildings); replace single-image `Sprite` with `TextureAtlas`-backed sprites
+- **Game saves (binary serialization)** — serialize world state (map, colonist positions/health, enemy state, buildings) to a compact binary format for save/load; consider `bincode` + `serde` derives or a custom flat-buffer approach for performance
+- **Spatial queries** — replace O(N²) nearest-neighbour loops in combat and separation systems with a spatial structure; candidates: KD-tree (static or semi-static entities) or spatial hashing (dynamic, grid-aligned entities like colonists and enemies)
+- **Procedural generation** — expand `map_gen.rs` with proper proc-gen (BSP rooms, cellular automata caves, or wave-function collapse); hook into the future chunk system so new chunks generate on reveal
+- **UI** — add in-game UI panels using `bevy_ui` (or a third-party crate like `bevy_egui`); minimum viable scope: colonist status bars, selected-unit info panel, resource counters
