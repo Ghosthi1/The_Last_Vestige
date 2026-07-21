@@ -31,6 +31,10 @@ impl Health {
     }
 }
 
+/// Marks an entity as dead for clean up
+#[derive(Component)]
+pub struct Dead;
+
 #[derive(Component)]
 pub struct Attacker{
     pub damage: f32,
