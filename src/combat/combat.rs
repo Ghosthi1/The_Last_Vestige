@@ -1,6 +1,6 @@
 ﻿use bevy::prelude::*;
 use crate::colonists::Colonist;
-use crate::components::{Attacker, Health, Target};
+use crate::components::{Attacker, Dead, Health, Target};
 use crate::enemys::Enemy;
 
 pub struct CombatPlugin;
@@ -84,5 +84,13 @@ pub fn colonist_attack(mut colonists:Query<(&mut Attacker, &Transform, &Target),
                 }
             }
         }
+    }
+}
+
+/// Tags enemies whose health is at zero with dead
+pub fn tag_dead_enemies(enemy_health_query:Query<(Entity, &Health), (With<Enemy>, Without<Dead>, Changed<Health>)>, mut commands: Commands)
+{
+    for (entity, health) in enemy_health_query.iter() {
+        if health.is_dead() {commands.entity(entity).insert(Dead);}
     }
 }
