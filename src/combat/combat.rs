@@ -43,7 +43,7 @@ pub fn enemy_attack(mut enemy_query: Query<(&mut Attacker, &Transform), (With<En
     }
 }
 
-pub fn colonist_attack(mut colonists:Query<(&mut Attacker, &Transform, &Target), (With<Colonist>, Without<Enemy>)>, mut enemy_query: Query<(Entity, &Transform, &mut Health), (With<Enemy>, Without<Colonist>)>,
+pub fn colonist_attack(mut colonists:Query<(&mut Attacker, &Transform, &mut Target), (With<Colonist>, Without<Enemy>)>, mut enemy_query: Query<(Entity, &Transform, &mut Health), (With<Enemy>, Without<Colonist>)>,
                        time: Res<Time>)
 {
     let mut enemy_snapshot: Vec<(Entity, Vec2)> = Vec::new();
@@ -51,7 +51,7 @@ pub fn colonist_attack(mut colonists:Query<(&mut Attacker, &Transform, &Target),
         enemy_snapshot.push((entity, transform.translation.truncate()));
     }
 
-    for (mut attacker, transform,target) in colonists.iter_mut() {
+    for (mut attacker, transform,mut target) in colonists.iter_mut() {
         let colonist_world_pos = transform.translation.truncate();
         attacker.cooldown.tick(time.delta());
 
@@ -64,6 +64,9 @@ pub fn colonist_attack(mut colonists:Query<(&mut Attacker, &Transform, &Target),
                             health.change_health(-attacker.damage);
                         }
                     }
+                }
+                else {
+                    target.0 = None;
                 }
             },
             None => {
