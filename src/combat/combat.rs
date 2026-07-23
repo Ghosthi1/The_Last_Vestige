@@ -8,6 +8,7 @@ impl Plugin for CombatPlugin {
 
     fn build(&self, app: &mut App) {
         app.add_systems(Update, (enemy_attack, colonist_attack));
+        app.add_systems(Update, (tag_dead_enemies.after(colonist_attack), despawn_dead_enemies.after(tag_dead_enemies)));
     }
 }
 
@@ -92,5 +93,12 @@ pub fn tag_dead_enemies(enemy_health_query:Query<(Entity, &Health), (With<Enemy>
 {
     for (entity, health) in enemy_health_query.iter() {
         if health.is_dead() {commands.entity(entity).insert(Dead);}
+    }
+}
+
+/// Removes enemys marked with the dead tag
+pub fn despawn_dead_enemies(dead_enemys:Query<Entity, (With<Dead>, With<Enemy>)>, mut commands: Commands){
+    for entity in dead_enemys.iter() {
+        commands.entity(entity).despawn();
     }
 }
