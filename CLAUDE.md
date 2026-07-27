@@ -16,7 +16,7 @@ cargo fmt            # format
 
 **The Last Vestige** — a top-down colony builder/defender in the style of RimWorld.
 
-- Engine: Bevy 0.18.1
+- Engine: Bevy 0.19.0
 - Camera: orthographic top-down
 - Platform: desktop only
 - Entry point: `src/main.rs`
@@ -62,6 +62,9 @@ src/
   combat/
     mod.rs         # Declares submodule, re-exports CombatPlugin
     combat.rs      # CombatPlugin; enemy_attack system (nearest colonist auto-targeting); colonist_attack system (spot mode via Target or passive nearest-enemy-in-range)
+  death/
+    mod.rs         # Declares submodule, re-exports DeathPlugin
+    death.rs       # DeathPlugin; tag_dead system (generic, ordered .after(colonist_attack).after(enemy_attack)); dead_enemies_handler, dead_colonists_handler (each .after(tag_dead)) — split out of combat/ so unrelated plugins (loot, animation, morale) can order against tag_dead without depending on combat internals
 ```
 
 ### Assets
@@ -111,13 +114,14 @@ src/
 - **`change_health(delta: f32)`** — adds `delta` to `current` (negative for damage, positive for healing); clamps `current` to `[0.0, max]`; when `current` hits `0.0` the entity is considered dead — `Health` itself never reacts to this, detection is handled entirely by an external system (`tag_dead_enemies`, see below)
 - **`is_dead() -> bool`** — returns `self.current <= 0.0`; called by an external system that queries for dead entities and handles despawning, tile events, and animations — `Health` itself cannot interact with the world
 - **Death handling pattern** — `Health` is pure data; death detection is a single generic system (`tag_dead`) that queries any entity with `Health`, calls `is_dead()`, and inserts a `Dead` marker component, regardless of entity type; reaction to the marker is split by type — `dead_enemies_handler` and `dead_colonists_handler` each react to `Dead` scoped to their own entity type and currently just despawn, with a `TODO` on each for future type-specific behaviour (death animation, loot drop, morale/game-state effects); implemented for both enemies and colonists — no movement/AI queries filter on `Without<Dead>` yet since nothing currently needs to
-- **`Dead` marker component** — zero-sized component in `components/combat.rs` alongside `Health`; inserted by the generic `tag_dead` system (no entity-type filter); consumed separately by `dead_enemies_handler` (`With<Dead>, With<Enemy>`) and `dead_colonists_handler` (`With<Dead>, With<Colonist>`) — tagging is generic, reaction is split by type since colonist and enemy death are expected to diverge in behaviour
+- **`Dead` marker component** — zero-sized component in `components/combat.rs` alongside `Health` (stays here for now — not moved to `death/` since it's plain data with no plugin of its own; revisit if a non-combat death cause, e.g. hunger, is ever added); inserted by the generic `tag_dead` system (no entity-type filter); consumed separately by `dead_enemies_handler` (`With<Dead>, With<Enemy>`) and `dead_colonists_handler` (`With<Dead>, With<Colonist>`) — tagging is generic, reaction is split by type since colonist and enemy death are expected to diverge in behaviour
 - **`Attacker` component** — lives in `components/combat.rs`; private `damage: f32`, `range: f32`, `cooldown: Timer` fields; constructed via `Attacker::new(damage, range, timer)`; range is in world units (multiply tile counts by `TILE_SIZE`); cooldown is a `Timer::from_seconds(n, TimerMode::Repeating)` — ticked every frame regardless of range so the first hit after closing distance doesn't fire instantly; both colonists and enemies carry this component
 - **`Target` component** — lives in `components/combat.rs`; tuple struct `Target(pub Option<Entity>)`; colonist-only; `None` = passive mode (attack nearest enemy in range), `Some(entity)` = spot mode (wait for that specific enemy to enter range); stale entity handling is implemented — in `colonist_attack`, the `Some(entity)` arm falls back to `target.0 = None` when the target is not found in that frame's `enemy_snapshot` (e.g. the target despawned), so a colonist whose spot-target dies drops back to passive/nearest-enemy mode instead of going idle
 - **`enemy_attack` system** — lives in `combat/combat.rs`; snapshots all colonist positions into `Vec<(Entity, Vec2)>` before the enemy loop; for each enemy ticks the timer, finds nearest colonist by distance squared, attacks if within `range * range` and `just_finished()`; uses `colonists.get_mut(entity)` for the damage call; query disjoint guards: `Without<Colonist>` on enemy query, `Without<Enemy>` on colonist query
 - **`colonist_attack` system** — lives in `combat/combat.rs`; snapshots all enemy positions into `Vec<(Entity, Vec2)>` before the colonist loop; matches on `target.0`: `Some(entity)` looks up the target in the snapshot for distance then calls `enemy_query.get_mut` for damage; `None` finds nearest enemy in the snapshot same as `enemy_attack`; snapshot used for position lookup in `Some` arm to avoid double-borrowing `enemy_query` (immutable get + mutable get_mut in same scope); this is the system that damages enemies, so `tag_dead_enemies` (below) is ordered `.after()` it
-- **`tag_dead` system** — lives in `combat/combat.rs`; queries `(Entity, &Health)` filtered `Without<Dead>, Changed<Health>` — no entity-type filter, so it tags any dead entity regardless of type; `Changed<Health>` means it only runs against entities that took damage (or were healed) this frame rather than scanning the whole population; inserts `Dead` when `health.is_dead()`; registered as a single system with both `.after(colonist_attack)` and `.after(enemy_attack)` chained — it must run after both, since either can zero out a `Health` it doesn't itself own (colonists damage enemies, enemies damage colonists); registering it twice with one `.after()` each was tried and rejected — Bevy doesn't deduplicate a function added via separate `add_systems` calls, so that produced two system instances running redundantly every frame
-- **`dead_enemies_handler` / `dead_colonists_handler` systems** — live in `combat/combat.rs`; each queries `Entity` filtered `With<Dead>` plus their respective `With<Enemy>`/`With<Colonist>`; both currently just despawn; both registered `.after(tag_dead)`; kept as separate systems from tagging (rather than combined) so future type-specific reactions (death animation, loot drop for enemies; morale/game-state effects for colonists) can be filled in independently without restructuring `tag_dead` — each has a `TODO` marking that it's despawn-only for now
+- **`tag_dead` system** — lives in `death/death.rs` under `DeathPlugin` (moved out of `combat/`); queries `(Entity, &Health)` filtered `Without<Dead>, Changed<Health>` — no entity-type filter, so it tags any dead entity regardless of type; `Changed<Health>` means it only runs against entities that took damage (or were healed) this frame rather than scanning the whole population; inserts `Dead` when `health.is_dead()`; registered with both `.after(colonist_attack)` and `.after(enemy_attack)` chained — it must run after both, since either can zero out a `Health` it doesn't itself own (colonists damage enemies, enemies damage colonists); registering it twice with one `.after()` each was tried and rejected — Bevy doesn't deduplicate a function added via separate `add_systems` calls, so that produced two system instances running redundantly every frame; `colonist_attack`/`enemy_attack` are imported from `crate::combat` purely for the ordering call — `DeathPlugin` doesn't otherwise depend on combat internals, and this cross-plugin `.after()` is the pattern any future plugin (loot, animation, morale) should follow to order against death without depending on combat
+- **`dead_enemies_handler` / `dead_colonists_handler` systems** — live in `death/death.rs` alongside `tag_dead`, not split into `enemys/`/`colonists/` yet since both are still despawn-only and identical in shape — move each into its owning feature module once it grows real type-specific behaviour (loot table on enemy death, say); each queries `Entity` filtered `With<Dead>` plus their respective `With<Enemy>`/`With<Colonist>`; both currently just despawn; both registered `.after(tag_dead)`; kept as separate systems from tagging (rather than combined) so future type-specific reactions (death animation, loot drop for enemies; morale/game-state effects for colonists) can be filled in independently without restructuring `tag_dead` — each has a `TODO` marking that it's despawn-only for now
+- **Why split from `combat/`** — loot, animation, morale, and job-cancellation reactions to death all need query shapes or cross-frame state unrelated to combat (e.g. morale needs to iterate *other* colonists, not the dead entity); giving `tag_dead` its own plugin lets those future plugins order `.after(tag_dead)` without depending on `CombatPlugin` at all
 
 ### Characters
 
@@ -188,15 +192,15 @@ src/
 
 ## Bevy 0.19 Upgrade Notes
 
-Staying on Bevy 0.18.1 for now. **Blocker:** `bevy_ecs_tilemap` 0.18.1 depends on `bevy ^0.18.0` and will not resolve against 0.19 — wait for a `bevy_ecs_tilemap` 0.19 release before upgrading. Check [crates.io/crates/bevy_ecs_tilemap](https://crates.io/crates/bevy_ecs_tilemap).
+Upgraded from 0.18.1 to **Bevy 0.19.0** (`bevy_ecs_tilemap` bumped to `0.19.0` alongside it, resolving the prior blocker). `cargo build` is clean with no source changes required beyond `Cargo.toml`.
 
-Breaking changes to action when upgrading:
+- **Audio feature no longer implied** — actioned: `audio` added to the `bevy` features list in `Cargo.toml` explicitly (`features = ["dynamic_linking", "audio"]`); without it `ambient_spaceship.ogg` would silently stop playing
+- **Resources as Components** — no impact observed; no query in this codebase is broad enough (e.g. `Query<()>`) to collide with resource entities
+- **`Assets::get_mut` return type changed** — no impact; this project doesn't call `.get_mut()` on an `Assets<T>` resource
+- **Scene system renamed** (`bevy_scene` → `bevy_world_serialization`) — no impact; scenes aren't used yet, revisit naming when they are
+- **Rendering pipeline overhaul** — no impact; no custom render code in this project, `map_renderer.rs` builds and runs unaffected
 
-- **Audio feature no longer implied** — `bevy/2d` no longer pulls in audio; add `audio` to the `bevy` features list in `Cargo.toml` explicitly or `ambient_spaceship.ogg` will silently stop playing
-- **Resources as Components** — resources are now stored as entities internally; broad queries like `Query<()>` can conflict with resource access; add `Without<IsResource>` filters if the compiler or Bevy panics with ambiguity errors; most targeted queries (e.g. `Query<&mut Transform, With<Enemy>>`) are unaffected
-- **`Assets::get_mut` return type changed** — now returns `AssetMut<A>` instead of `&mut Asset`; any code that calls `.get_mut()` on an `Assets<T>` resource will need updating; modified events are now only fired on actual changes rather than every call
-- **Scene system renamed** — `bevy_scene` → `bevy_world_serialization`; `Scene` → `WorldAsset`, `SceneRoot` → `WorldAssetRoot`; not currently used in this project but will matter when scenes are added
-- **Rendering pipeline overhaul** — render graph now uses the system scheduler; `shadow_pass` split into `per_view_shadow_pass` and `shared_shadow_pass`; `ViewTarget` output now returns `Option`; no custom render code in this project so impact is low, but double-check `map_renderer.rs` if anything render-related breaks
+If new breaking changes surface while working in 0.19, add them here.
 
 ## Documentation Standards
 
@@ -216,6 +220,8 @@ Claude should **never write code** with the exception of claude.md. Only explain
 - **Flag working-but-suboptimal code** — if something works but is inefficient or could be done more sensibly, say so
 - **Wait for the developer to drive** — don't suggest next steps or features unprompted
 - **Warn about bad designs early** — if a design direction will cause pain (especially Bevy ECS anti-patterns common in colony/sim games e.g. storing too much state in single entities, overusing Resources instead of Components), raise it before they build too far
+- **Keep explanations brief** — favor short, direct answers over exhaustive ones; still explain the why, but don't pad it
+- **Give multi-step instructions one step at a time** — when a change spans multiple files or steps, give a single step, then wait for the developer to confirm or complete it before giving the next; don't dump the whole sequence in one response
 
 ## Planned Features / TODO
 
