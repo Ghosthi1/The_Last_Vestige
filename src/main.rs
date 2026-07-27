@@ -7,6 +7,7 @@ mod buildings;
 mod components;
 mod systems;
 mod combat;
+mod death;
 
 use bevy::prelude::*;
 use bevy_ecs_tilemap::TilemapPlugin;
@@ -21,6 +22,7 @@ use crate::systems::CameraPlugin;
 use crate::colonists::ColonistSpawnerPlugin;
 use crate::colonists::SelectionPlugin;
 use crate::combat::CombatPlugin;
+use crate::death::DeathPlugin;
 
 fn main() {
     App::new()
@@ -29,7 +31,7 @@ fn main() {
         .insert_resource(FlowFields::default())
         .add_plugins((DefaultPlugins.set(ImagePlugin::default_nearest()), TilemapPlugin))
         .add_plugins((EnemySpawnerPlugin, ColonistSpawnerPlugin, map::MapRendererPlugin, CharacterPlugin,
-                      AiPlugin, EnemyPlugin, CameraPlugin, BuildingPlugin, AmbientPlugin, SelectionPlugin, CombatPlugin))
+                      AiPlugin, EnemyPlugin, CameraPlugin, BuildingPlugin, AmbientPlugin, SelectionPlugin, CombatPlugin, DeathPlugin))
         .add_systems(Update, debug)
         .run();
 }

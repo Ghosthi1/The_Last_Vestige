@@ -13,7 +13,7 @@ pub const ENEMY_RANGE: f32 = 1.2 * TILE_SIZE;
 pub const ENEMY_DAMAGE: f32 = 20.0;
 
 // Colonists //
-pub const COLONIST_HEALTH: f32 = 1.0;
+pub const COLONIST_HEALTH: f32 = 40.0;
 pub const COLONIST_SPEED: f32 = 80.0;
 pub const COLONIST_RANGE: f32 = 1.5 * TILE_SIZE;
 pub const COLONIST_DAMAGE: f32 = 20.0;
