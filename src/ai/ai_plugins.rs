@@ -14,8 +14,9 @@ impl Plugin for AiPlugin {
 }
 /// Triggered by a colonists position changing, collects all colonists positions rebuilds the colonist flow field
 pub fn rebuild_colonist_flow_field(mut flow_fields: ResMut<FlowFields>, map: Res<Map>, colonist_moved: Query<&GridPosition, (With<Colonist>, Changed<GridPosition>)>,
-                               colonist_pos: Query<&GridPosition, With<Colonist>>, mut positions: Local<Vec<(u32, u32)>>) {
-    if colonist_moved.is_empty() { return } // no colonist moved
+                               colonist_pos: Query<&GridPosition, With<Colonist>>, mut positions: Local<Vec<(u32, u32)>>,
+                                mut removed_colonists: RemovedComponents<Colonist>) {
+    if colonist_moved.is_empty() && removed_colonists.read().count() == 0 { return } // no colonist moved
     positions.clear();
     for grid_pos in colonist_pos.iter() {
         positions.push(grid_pos.0);

@@ -21,7 +21,6 @@ impl Default for FlowFields{
     }
 }
 
-
 /// A precomputed directional map guiding entities toward a goal across the tile grid.
 pub struct FlowField{
     /// The Width of the FlowField
