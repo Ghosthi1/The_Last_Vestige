@@ -8,6 +8,7 @@ mod components;
 mod systems;
 mod combat;
 mod death;
+mod ui;
 
 use bevy::prelude::*;
 use bevy_ecs_tilemap::TilemapPlugin;
@@ -23,15 +24,18 @@ use crate::colonists::ColonistSpawnerPlugin;
 use crate::colonists::SelectionPlugin;
 use crate::combat::CombatPlugin;
 use crate::death::DeathPlugin;
+use crate::ui::{LifeSupport, UiPlugin};
 
 fn main() {
     App::new()
         .insert_resource(map::map_gen::generate_map(MAP_WIDTH, MAP_HEIGHT))
         .insert_resource(map::MapOffset { offset: Vec2::new(-( MAP_WIDTH as f32 * TILE_SIZE/2.0), -(MAP_HEIGHT as f32* TILE_SIZE/2.0)) })
         .insert_resource(FlowFields::default())
+        .insert_resource(LifeSupport::default())
         .add_plugins((DefaultPlugins.set(ImagePlugin::default_nearest()), TilemapPlugin))
         .add_plugins((EnemySpawnerPlugin, ColonistSpawnerPlugin, map::MapRendererPlugin, CharacterPlugin,
-                      AiPlugin, EnemyPlugin, CameraPlugin, BuildingPlugin, AmbientPlugin, SelectionPlugin, CombatPlugin, DeathPlugin))
+                      AiPlugin, EnemyPlugin, CameraPlugin, BuildingPlugin, AmbientPlugin, SelectionPlugin, CombatPlugin, DeathPlugin,
+                      UiPlugin))
         .add_systems(Update, debug)
         .run();
 }

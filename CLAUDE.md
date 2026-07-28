@@ -45,9 +45,12 @@ src/
     mod.rs         # Declares submodules, re-exports all shared components
     movement.rs    # GridPosition, Path, Speed — shared movement components used by both colonists and enemies
     combat.rs      # Health component — private current/max f32 fields; new(max), change_health(delta), is_dead(); Attacker component — damage/range/cooldown, new(damage, range, timer); Target(Option<Entity>) tuple struct — colonist-only, holds player-assigned attack target
+    selected.rs    # Selected marker component — zero-sized, tags player-selected colonists
   colonists/
-    mod.rs         # Declares submodules, re-exports Colonist, CharacterPlugin, ColonistSpawnerPlugin, SelectionPlugin
-    characters.rs  # Colonist marker component; CharacterPlugin; separate_colonists, move_character, move_to_click systems; tile_at helper
+    mod.rs              # Declares submodules, re-exports Colonist, CharacterPlugin, ColonistSpawnerPlugin, SelectionPlugin
+    characters.rs       # Colonist marker component; CharacterPlugin; separate_colonists, move_character, move_to_click systems; tile_at helper
+    colonist_spawner.rs # ColonistSpawnerPlugin; spawn_colonist Startup system — spawns colonist bundle (Colonist, GridPosition, Health, Speed, Sprite, Transform, Path, Attacker, Target) at two hardcoded grid positions
+    selection.rs        # SelectionPlugin; DragSelection resource (drag_start, is_dragging); dragselection system (click-select nearest colonist in range, or drag-box-select via Rect); draw_selection_indicator system (gizmo circle on selected colonists)
   enemys/
     mod.rs         # Declares submodules, re-exports Enemy, EnemyPlugin, EnemySpawnerPlugin
     enemy.rs       # Enemy marker component; EnemyPlugin; flow-field-driven movement systems (move_enemy, separate_enemies)
@@ -65,6 +68,9 @@ src/
   death/
     mod.rs         # Declares submodule, re-exports DeathPlugin
     death.rs       # DeathPlugin; tag_dead system (generic, ordered .after(colonist_attack).after(enemy_attack)); dead_enemies_handler, dead_colonists_handler (each .after(tag_dead)) — split out of combat/ so unrelated plugins (loot, animation, morale) can order against tag_dead without depending on combat internals
+  ui/
+    mod.rs         # Declares hud submodule, re-exports UiPlugin
+    hud.rs         # UiPlugin; spawn_hud_root Startup system — spawns the full-screen root Node all HUD panels are children of
 ```
 
 ### Assets
@@ -138,6 +144,17 @@ src/
 - **Tilemap offset:** the tilemap is centered on screen — tile world position = `tile_coord * TILE_SIZE + TILE_SIZE/2 - map_size * TILE_SIZE/2`; this places entities at the **center** of each tile; all coordinate conversions must account for this
 - **Loop-invariant hoisting:** map offset values (`width/height * TILE_SIZE/2`) are computed once before the character loop in `move_character`, not per-iteration
 
+### Selection
+
+- **`Selected` marker component** — zero-sized, lives in `components/selected.rs`; tags the currently-selected colonist(s); inserted/removed by `dragselection`, read by `draw_selection_indicator`
+- **`DragSelection` resource** — lives in `colonists/selection.rs`; `#[derive(Resource, Default)]`; `drag_start: Option<Vec2>` (window-space cursor position where the left mouse button went down), `is_dragging: bool`
+- **`dragselection` system** — disambiguates click vs. drag using a `5.0`-pixel movement threshold measured from `drag_start`: on `just_pressed`, records `drag_start`; while `pressed`, sets `is_dragging` once the cursor moves past the threshold and draws a live selection-box gizmo (`gizmos.rect_2d`) between `drag_start` and the current cursor, both converted to world space via `viewport_to_world_2d`; on `just_released`, branches on `is_dragging`
+- **Click-select (not dragging):** converts cursor to world space, finds the nearest colonist by `Transform` distance, and selects it only if within `TILE_SIZE * 0.6` — clicking empty space clears selection without picking a colonist
+- **Drag-select (dragging):** builds a `Rect::from_corners(start_world, end_world)` and selects every colonist whose `Transform` translation falls inside it via `rect.contains()`
+- **Replace, not add:** both branches clear `Selected` from every colonist before applying the new selection — there is no additive/shift-click multi-select yet, a single click or drag always replaces the prior selection
+- **`draw_selection_indicator` system** — queries `Transform` filtered `With<Selected>`, draws a gizmo circle (`gizmos.circle_2d`, radius `TILE_SIZE * 0.5`) at each selected colonist's position every frame
+- **`SelectionPlugin`** — registers both systems on `Update`; no explicit ordering between them and `move_character`/`move_to_click` since selection only reads `Transform`, never mutates it
+
 ### Enemies
 
 - **`Enemy` marker component** — zero-sized, lives in `enemys/enemy.rs`; used to filter enemy-only queries and distinguish enemies from colonists who share `GridPosition` and `Speed`
@@ -190,6 +207,14 @@ src/
 - **Grid overlay deferred** — a `PrimitiveTopology::LineList` mesh is the right approach; build it once the chunk/expansion system exists so the mesh update hook has something to connect to
 - **`MapOffset` is fragile** — currently hardcoded in `main.rs` with the map size baked in; will break when the map expands. Revisit when the chunk/expansion system is built — the offset should be derived from map state, not set once at startup
 
+### HUD / UI
+
+- **Tool choice: native `bevy_ui`** — considered `bevy_egui` (rejected: immediate-mode look reads as editor/debug UI, not a diegetic in-game HUD) and `bevy_lunex` (rejected for now: better suited to non-rectangular/angular HUD layout, but a smaller third-party crate carrying the same version-lag risk that blocked the Bevy 0.19 upgrade with `bevy_ecs_tilemap`); modern `bevy_ui` (rounded corners, box shadows, gradients) covers the sci-fi panel look via 9-slice panel textures and translucent `BackgroundColor`s without that dependency risk — a custom `UiMaterial`/WGSL shader is the fallback for animated effects (scanlines, pulsing glow) if plain nodes aren't enough
+- **Root node pattern** — `UiPlugin::build` registers `spawn_hud_root` on `Startup`; it spawns a single entity with `Node { width: Val::Percent(100.0), height: Val::Percent(100.0), ..default() }` as the parent every HUD panel will be a child of; `BackgroundColor` was added temporarily to visually confirm the node's placement/size, then removed — the root itself must stay invisible (an opaque full-screen `BackgroundColor` blocks the world view underneath), visible color belongs only on child panels sized to their own content
+- **Resource bar categorisation** — the top bar is split by urgency rather than shown as one flat row of icons: **life-support** (oxygen, food, water, energy) is always visible and built first, since zero on any of these means colonists start dying; **population** is a colony-status count, not a depletable resource, so it gets its own slot rather than sitting in the resource-bar style; **stockpile materials** (scrap metal, refined metals, bullets) are deferred — likely belong in a build/loadout panel where they're actually spent rather than the always-on HUD bar, with ammo count as a possible exception since combat is real-time
+- **`LifeSupport` resource** — lives in `ui/hud.rs`; private `oxygen: f32`, `food: f32`, `water: f32`, `energy: f32` fields, `#[derive(Resource)]`; starting values (`100.0` each) are set via a `Default` impl rather than a struct literal, since the fields are private and `main.rs` (a different module) can't construct a struct literal with private fields — `main.rs` inserts it via `.insert_resource(LifeSupport::default())`, same shape as the existing `FlowFields::default()` line; no accessor methods yet since nothing outside `hud.rs` reads or mutates it
+- **Current status:** `LifeSupport` resource in place and inserted; next up is spawning the four life-support values as `Text` children of the root node (`spawn_hud_root` gains a `Res<LifeSupport>` param, children added via `.with_children(...)`), each tagged with its own marker component (`OxygenText`, `FoodText`, `WaterText`, `EnergyText`) so a later update-on-change system can find the right entity to update when `LifeSupport` changes; text display is plain `"Label: value"` strings — no bars or icons for the life-support group
+
 ## Bevy 0.19 Upgrade Notes
 
 Upgraded from 0.18.1 to **Bevy 0.19.0** (`bevy_ecs_tilemap` bumped to `0.19.0` alongside it, resolving the prior blocker). `cargo build` is clean with no source changes required beyond `Cargo.toml`.
@@ -218,9 +243,9 @@ Claude should **never write code** with the exception of claude.md. Only explain
 - **Always explain why** — not just what to do, but the reasoning and tradeoffs behind it
 - **Point out problems, never fix them** — flag bugs, issues, and inefficiencies; let the developer resolve them
 - **Flag working-but-suboptimal code** — if something works but is inefficient or could be done more sensibly, say so
-- **Wait for the developer to drive** — don't suggest next steps or features unprompted
 - **Warn about bad designs early** — if a design direction will cause pain (especially Bevy ECS anti-patterns common in colony/sim games e.g. storing too much state in single entities, overusing Resources instead of Components), raise it before they build too far
-- **Keep explanations brief** — favor short, direct answers over exhaustive ones; still explain the why, but don't pad it
+- **Wait for the developer to drive** — don't suggest next steps or features unprompted
+- **Keep responses short and low-density** — favor short, direct answers over exhaustive ones; explain the why, but in tight bullets or short sentences — never padded paragraphs, even in summaries or status reports
 - **Give multi-step instructions one step at a time** — when a change spans multiple files or steps, give a single step, then wait for the developer to confirm or complete it before giving the next; don't dump the whole sequence in one response
 
 ## Planned Features / TODO
@@ -230,4 +255,4 @@ Claude should **never write code** with the exception of claude.md. Only explain
 - **Game saves (binary serialization)** — serialize world state (map, colonist positions/health, enemy state, buildings) to a compact binary format for save/load; consider `bincode` + `serde` derives or a custom flat-buffer approach for performance
 - **Spatial queries** — replace O(N²) nearest-neighbour loops in combat and separation systems with a spatial structure; candidates: KD-tree (static or semi-static entities) or spatial hashing (dynamic, grid-aligned entities like colonists and enemies)
 - **Procedural generation** — expand `map_gen.rs` with proper proc-gen (BSP rooms, cellular automata caves, or wave-function collapse); hook into the future chunk system so new chunks generate on reveal
-- **UI** — add in-game UI panels using `bevy_ui` (or a third-party crate like `bevy_egui`); minimum viable scope: colonist status bars, selected-unit info panel, resource counters
+- **UI** — in progress, see [HUD / UI](#hud--ui); tool decided (`bevy_ui`), root node in place, life-support resource group underway; still open: population slot, stockpile materials panel, colonist status bars, selected-unit info panel, minimap
