@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 bevy = { version = "0.19.0", features = ["dynamic_linking", "audio"] }
 bevy_ecs_tilemap = "0.19.0"
+rand = "0.10.2"
 
 [profile.dev]
 opt-level = 1

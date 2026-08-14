@@ -13,7 +13,7 @@ impl Plugin for MapRendererPlugin {
 /// Startup system that spawns the tilemap entities from the MAp resource and applies tile textures from the spritesheet
 pub fn spawn_tilemap(map: Res<Map>,asset_server: Res<AssetServer>, mut command:Commands) {
 
-    let texture_handle: Handle<Image> = asset_server.load("PlaceHolder_tileset.png"); // Loads the SpriteSheet
+    let texture_handle: Handle<Image> = asset_server.load("Floors/tilesheet_6x3_128px.png"); // Loads the SpriteSheet
     let map_size = TilemapSize{x:map.width,y:map.height}; // Used to put aside correct amount of resources
     let tilemap_entity = command.spawn_empty().id(); // Reserves a unique ID for the tilemap entity so tiles can reference it before it's fully built
 
@@ -25,7 +25,7 @@ pub fn spawn_tilemap(map: Res<Map>,asset_server: Res<AssetServer>, mut command:C
             let tile_entity = command.spawn(TileBundle {
                 position: tile_pos,
                 tilemap_id: TilemapId(tilemap_entity),
-                texture_index: TileTextureIndex(map.get(x,y).tile_type.texture_index()),
+                texture_index: TileTextureIndex(map.get(x,y).texture_index()),
                 ..Default::default()
             }).id();
             tile_storage.set(&tile_pos, tile_entity); // Adds the tile to the entity storage

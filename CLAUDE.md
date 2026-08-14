@@ -75,7 +75,7 @@ src/
 
 ### Assets
 
-- `assets/PlaceHolder_tileset.png` — spritesheet, three 32×32 tiles: floor (0), wall (1), door (2). `TILE_SIZE = 32.0` defined in `src/constants.rs` as a shared `pub const`, imported via `use crate::constants::TILE_SIZE` wherever tile sizing is needed
+- `assets/Floors/tilesheet_6x3_128px.png` — spritesheet, 6 columns × 3 rows of 128×128 tiles: row 0 = 6 floor visual variants, row 1 = wall, row 2 = door (closed, open, locked columns — locked reserved, not wired up yet). Replaces the old `PlaceHolder_tileset.png` placeholder (no longer referenced anywhere in `src/`). `TILE_SIZE = 128.0` defined in `src/constants.rs` as a shared `pub const`, imported via `use crate::constants::TILE_SIZE` wherever tile sizing is needed
 - `assets/enemeys/Spiders/Grunt.png` — sprite for the Grunt enemy; loaded via `AssetServer` in `spawn_enemy` and set on the `Sprite` `image` field; `custom_size` is `Vec2::splat(TILE_SIZE)` but the grunt is intentionally drawn smaller than the canvas for visual style — hitbox size will be defined independently when collision is added
 - `assets/Sound/Background/ambient_spaceship.ogg` — looping ambient soundtrack; loaded and spawned as an audio entity in `Systems/ambient.rs` via `AmbientPlugin`
 
@@ -196,6 +196,13 @@ src/
 - **Grid overlay deferred** — a `PrimitiveTopology::LineList` mesh is the right approach; build it once the chunk/expansion system exists so the mesh update hook has something to connect to
 - **`MapOffset` is fragile** — currently hardcoded in `main.rs` with the map size baked in; will break when the map expands. Revisit when the chunk/expansion system is built — the offset should be derived from map state, not set once at startup
 
+### Floor Variants
+
+- **Cosmetic variation, not tile type** — `TileData` (`map/map.rs`) has a `floor_variant: u32` field alongside `tile_type`; it selects which of 6 floor art variants a `Floor` tile renders as, entirely independent of `TileType` — walls and doors have no variants
+- **`texture_index()` lives on `TileData`, not `TileType`** — moved off `TileType` since computing the final sheet index needs both `tile_type` and `floor_variant` together; `TileType` alone can no longer answer "what's my texture." `TileType::is_passable()` stays on `TileType` since passability only depends on the type, not the variant
+- **Row-major sheet layout** — `assets/Floors/tilesheet_6x3_128px.png` is 6 columns × 3 rows of 128px tiles; `bevy_ecs_tilemap` slices a `TilemapTexture::Single` image row-major, so `index = row * 6 + column`. Row 0 = floor variants (columns 0–5 map directly to `floor_variant`), row 1 = wall (fixed at index `6`, no variants yet), row 2 = door (column 0 = closed → index `12`, column 1 = open → index `13`; column 2 is reserved for a locked state but `TileType::Door` only carries `is_open: bool` so far, so locked is unimplemented)
+- **Generation:** `generate_map` (`map/map_gen.rs`) rolls a weighted-random `floor_variant` per tile via `rand::distr::weighted::WeightedIndex` (weights `[50, 10, 10, 10, 1, 10]` — variant 0 dominant, the rest sprinkled in, one intentionally rarer) and `rand::rng()` for the thread-local source; `WeightedIndex::sample` requires the `rand::prelude::Distribution` trait in scope
+
 ### HUD / UI
 
 - **Tool choice: native `bevy_ui`** — considered `bevy_egui` (rejected: immediate-mode look reads as editor/debug UI, not a diegetic in-game HUD) and `bevy_lunex` (rejected for now: better suited to non-rectangular/angular HUD layout, but a smaller third-party crate carrying the same version-lag risk that blocked the Bevy 0.19 upgrade with `bevy_ecs_tilemap`); modern `bevy_ui` (rounded corners, box shadows, gradients) covers the sci-fi panel look via 9-slice panel textures and translucent `BackgroundColor`s without that dependency risk — a custom `UiMaterial`/WGSL shader is the fallback for animated effects (scanlines, pulsing glow) if plain nodes aren't enough
@@ -235,7 +242,8 @@ Claude should **never write code** with the exception of claude.md. Only explain
 - **Warn about bad designs early** — if a design direction will cause pain (especially Bevy ECS anti-patterns common in colony/sim games e.g. storing too much state in single entities, overusing Resources instead of Components), raise it before they build too far
 - **Wait for the developer to drive** — don't suggest next steps or features unprompted
 - **Keep responses short and low-density** — favor short, direct answers over exhaustive ones; explain the why, but in tight bullets or short sentences — never padded paragraphs, even in summaries or status reports
-- **Give multi-step instructions one step at a time** — when a change spans multiple files or steps, give a single step, then wait for the developer to confirm or complete it before giving the next; don't dump the whole sequence in one response
+- **Give multi-step instructions one step at a time** — when a change spans multiple files, steps, or distinct concepts (even within a single file), give a single step, then wait for the developer to confirm or complete it before giving the next; don't dump the whole sequence in one response. This applies within a single explanation too — if a step has more than one distinct part (e.g. "the tool to use" and "where it plugs in"), split those into separate turns rather than bundling them
+- **Be more explicit and concrete, not just brief** — short is good, but don't compress to the point of vagueness; name the exact type, field, function, or file involved rather than describing it abstractly. Concise and clear beat concise and terse
 
 ## Planned Features / TODO
 

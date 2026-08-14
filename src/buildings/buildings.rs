@@ -54,7 +54,7 @@ fn on_tile_change(mut events: MessageReader<TileChangedEvent>, map: Res<Map>, ti
     let Ok(tile_storage) = tile_storage_query.single() else { return; };
     for event in events.read(){
         let Some(tile_pos) = tile_storage.get(&TilePos {x: event.x, y: event.y}) else { continue; };
-        let texture_index = map.get(event.x, event.y).tile_type.texture_index();
+        let texture_index = map.get(event.x, event.y).texture_index();
         commands.entity(tile_pos).insert(TileTextureIndex(texture_index));
     }
 }
