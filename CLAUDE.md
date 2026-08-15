@@ -78,6 +78,10 @@ src/
 - `assets/Floors/tilesheet_6x3_128px.png` — spritesheet, 6 columns × 3 rows of 128×128 tiles: row 0 = 6 floor visual variants, row 1 = wall, row 2 = door (closed, open, locked columns — locked reserved, not wired up yet). Replaces the old `PlaceHolder_tileset.png` placeholder (no longer referenced anywhere in `src/`). `TILE_SIZE = 128.0` defined in `src/constants.rs` as a shared `pub const`, imported via `use crate::constants::TILE_SIZE` wherever tile sizing is needed
 - `assets/enemeys/Spiders/Grunt.png` — sprite for the Grunt enemy; loaded via `AssetServer` in `spawn_enemy` and set on the `Sprite` `image` field; `custom_size` is `Vec2::splat(TILE_SIZE)` but the grunt is intentionally drawn smaller than the canvas for visual style — hitbox size will be defined independently when collision is added
 - `assets/Sound/Background/ambient_spaceship.ogg` — looping ambient soundtrack; loaded and spawned as an audio entity in `Systems/ambient.rs` via `AmbientPlugin`
+- `assets/Colonists/Knight/` — knight sprite sheets, replacing the old single-image `Knight_1.png`/`Knight_1-Sheet.png`/`Knight_1.aseprite` (deleted). Two skin colours (silver, bronze) are baked into each sheet rather than being separate files — see [Character Animation](#character-animation) for how they're indexed:
+  - `space_knight_attack_sheet_4x2_128px.png`, `space_knight_carry_sheet_4x2_128px.png`, `space_knight_idle_sheet_4x2_128px.png`, `space_knight_walk_sheet_4x2_128px.png`, `space_knight_work_sheet_4x2_128px.png` — all 512×256, 4 columns × 2 rows of 128px tiles; row 0 = silver skin (4-frame cycle), row 1 = bronze skin (4-frame cycle)
+  - `space_knight_sleep_sheet_2x1_128px.png` — 256×128, 2 columns × 1 row; column 0 = silver (single static frame), column 1 = bronze (single static frame) — not animated, unlike the other five
+  - `space_knight_bronze.png`, `space_knight_silver_v2.png` — reference art for the developer only, not loaded by the game; not wired into code and not intended to be
 
 ## Architecture Decisions
 
@@ -132,6 +136,19 @@ src/
 - **`tile_at` helper:** lives in `characters.rs`, same logic as in `enemy.rs` — converts a world `Vec2` to a grid coordinate, returns `None` if out of bounds or impassable; used by `separate_colonists` for wall collision
 - **System ordering:** `separate_colonists.before(move_character)` and `move_to_click.before(move_character)` — explicit `.before()` constraints, not `.chain()`
 - **Tilemap offset:** the tilemap is centered on screen — tile world position = `tile_coord * TILE_SIZE + TILE_SIZE/2 - map_size * TILE_SIZE/2`; this places entities at the **center** of each tile; all coordinate conversions must account for this
+
+### Character Animation
+
+- **Status: planned, not yet implemented** — no `TextureAtlas`/`TextureAtlasLayout` usage exists anywhere in `src/` yet; `spawn_colonist` still sets a single static `Sprite.image`. This section records the agreed design ahead of implementation
+- **Mechanism** — Bevy 0.19's `Sprite` has a `texture_atlas: Option<TextureAtlas>` field, where `TextureAtlas { layout: Handle<TextureAtlasLayout>, index: usize }`. Changing which sub-frame is shown = changing `index`. Changing which *animation* is shown (idle → walk) = swapping `Sprite.image` itself, since each animation state lives in its own sheet file (see [Assets](#assets))
+- **Two shared layouts, not six** — `attack`/`carry`/`idle`/`walk`/`work` all share identical grid geometry (4 cols × 2 rows × 128px), so one `TextureAtlasLayout` built via `TextureAtlasLayout::from_grid` covers all five; `sleep`'s 2×1 grid needs a second, separate layout. A layout is index math only — it doesn't care which image it's paired with
+- **Row/column = skin colour, not direction** — on the 4×2 sheets, silver is row 0 (atlas indices 0–3), bronze is row 1 (indices 4–7); on `sleep`, silver = index 0, bronze = index 1 (single static frame each)
+- **Planned pieces (not yet built):**
+  - a resource holding the six `Handle<Image>`s plus the two `Handle<TextureAtlasLayout>`s, populated once in a `Startup` system — loaded once, not per-colonist, same rationale as texture handle `.clone()`ing in `spawn_enemy`
+  - a component identifying which animation state a colonist is in (idle/walk/attack/carry/work/sleep)
+  - a component identifying skin colour (silver/bronze), driving the row/index offset
+  - a per-entity animation timer that advances the frame index each tick and wraps within the current state+skin's 4-frame range (or stays fixed at 1 frame for `sleep`)
+  - a system that, on state change, swaps `Sprite.image` and `TextureAtlas.layout`/`index` together — swapping only `index` is not enough when the state change also changes which sheet is active
 
 ### Selection
 
@@ -247,8 +264,7 @@ Claude should **never write code** with the exception of claude.md. Only explain
 
 ## Planned Features / TODO
 
-- **Sprite animations** — animate colonist and enemy sprites using Bevy's `AnimationClip` / `AnimationPlayer` or a spritesheet atlas index approach; each entity type needs idle, walk, attack, and death states
-- **Sprite sheets** — create and wire up spritesheet assets for every sprite in the game (colonists, enemies, buildings); replace single-image `Sprite` with `TextureAtlas`-backed sprites
+- **Sprite animations / sprite sheets** — in progress for the knight colonist, see [Character Animation](#character-animation); art is in (`assets/Colonists/Knight/`, idle/walk/attack/carry/work/sleep, silver + bronze skins), wiring (`TextureAtlas`, state/skin components, timer system) is designed but not yet built; enemies and other colonist types still need art + wiring from scratch
 - **Game saves (binary serialization)** — serialize world state (map, colonist positions/health, enemy state, buildings) to a compact binary format for save/load; consider `bincode` + `serde` derives or a custom flat-buffer approach for performance
 - **Spatial queries** — replace O(N²) nearest-neighbour loops in combat and separation systems with a spatial structure; candidates: KD-tree (static or semi-static entities) or spatial hashing (dynamic, grid-aligned entities like colonists and enemies)
 - **Procedural generation** — expand `map_gen.rs` with proper proc-gen (BSP rooms, cellular automata caves, or wave-function collapse); hook into the future chunk system so new chunks generate on reveal
