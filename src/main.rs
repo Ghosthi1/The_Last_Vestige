@@ -9,6 +9,7 @@ mod systems;
 mod combat;
 mod death;
 mod ui;
+mod animation;
 
 use bevy::prelude::*;
 use bevy_ecs_tilemap::TilemapPlugin;
@@ -26,6 +27,10 @@ use crate::combat::CombatPlugin;
 use crate::death::DeathPlugin;
 use crate::ui::life_support::LifeSupportPlugin;
 use crate::ui::UiPlugin;
+use crate::animation::AnimationPlugin;
+use crate::animation::ColonistAnimationPlugin;
+use crate::ui::fps_counter::FpsCounterPlugin;
+use crate::ui::enemy_counter::EnemyCounterPlugin;
 
 fn main() {
     App::new()
@@ -35,21 +40,22 @@ fn main() {
         .add_plugins((DefaultPlugins.set(ImagePlugin::default_nearest()), TilemapPlugin))
         .add_plugins((EnemySpawnerPlugin, ColonistSpawnerPlugin, map::MapRendererPlugin, CharacterPlugin,
                       AiPlugin, EnemyPlugin, CameraPlugin, BuildingPlugin, AmbientPlugin, SelectionPlugin, CombatPlugin, DeathPlugin,
-                      UiPlugin,LifeSupportPlugin))
-        .add_systems(Update, debug)
+                      UiPlugin,LifeSupportPlugin, AnimationPlugin))
+        .add_plugins((ColonistAnimationPlugin, FpsCounterPlugin, EnemyCounterPlugin))
+        // .add_systems(Update, debug)
         .run();
 }
 
 ////////////////////////////////////////
-/// Creates Lines so the grid is visible
+// Creates Lines so the grid is visible
 ///////////////////////////////////////
-fn debug(mut gizmos: Gizmos){
-    for i in 0..=MAP_WIDTH{
-        let x = -(MAP_WIDTH as f32 * TILE_SIZE / 2.0) + i as f32 * TILE_SIZE;
-        gizmos.line_2d( Vec2::new(x, -(MAP_HEIGHT as f32 * TILE_SIZE / 2.0)),  Vec2::new(x, MAP_HEIGHT as f32 * TILE_SIZE / 2.0), Color::WHITE)
-    }
-    for j in 0..=MAP_HEIGHT{
-        let y = -(MAP_HEIGHT as f32 * TILE_SIZE / 2.0) + j as f32 * TILE_SIZE;
-        gizmos.line_2d(  Vec2::new(-(MAP_WIDTH as f32 * TILE_SIZE / 2.0), y), Vec2::new(MAP_WIDTH as f32 * TILE_SIZE / 2.0, y), Color::WHITE)
-    }
-}
+// fn debug(mut gizmos: Gizmos){
+//     for i in 0..=MAP_WIDTH{
+//         let x = -(MAP_WIDTH as f32 * TILE_SIZE / 2.0) + i as f32 * TILE_SIZE;
+//         gizmos.line_2d( Vec2::new(x, -(MAP_HEIGHT as f32 * TILE_SIZE / 2.0)),  Vec2::new(x, MAP_HEIGHT as f32 * TILE_SIZE / 2.0), Color::WHITE)
+//     }
+//     for j in 0..=MAP_HEIGHT{
+//         let y = -(MAP_HEIGHT as f32 * TILE_SIZE / 2.0) + j as f32 * TILE_SIZE;
+//         gizmos.line_2d(  Vec2::new(-(MAP_WIDTH as f32 * TILE_SIZE / 2.0), y), Vec2::new(MAP_WIDTH as f32 * TILE_SIZE / 2.0, y), Color::WHITE)
+//     }
+// }
