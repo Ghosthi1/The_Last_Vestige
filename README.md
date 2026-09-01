@@ -8,9 +8,7 @@ There is no win condition. There is no survival ending. The entire design premis
 
 *Design goal, not yet built:* enemies currently swarm toward whichever colonist is nearest (see [Pathfinding](#pathfinding-a-and-flow-fields-implemented-from-scratch) below); the intent is for the AI to eventually evaluate the player's defences and route around strongpoints toward weaker ones. Worth being upfront about that distinction if this comes up in an interview.
 
-<video src="README_Assets/Gif.mp4" controls width="100%">
-  Your browser doesn't support inline video — <a href="README_Assets/Gif.mp4">download the clip</a> directly.
-</video>
+![Colony under siege](README_Assets/overview.gif)
 
 ---
 
@@ -46,7 +44,7 @@ The enemy separation system (`separate_enemies`) is a pairwise repulsion check b
 
 The fix isn't implemented yet — it's a spatial hash or grid-based neighbour lookup, so separation only checks nearby enemies instead of the entire population. That's a known, scoped next step, not a mystery bottleneck; the measurement above is what motivates prioritizing it.
 
-Horde footage is at the top of this README (`README_Assets/Gif.mp4`).
+Horde footage is at the top of this README (`README_Assets/overview.gif`).
 
 ### Real-time sprite animation system
 
