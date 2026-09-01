@@ -8,8 +8,8 @@ There is no win condition. There is no survival ending. The entire design premis
 
 *Design goal, not yet built:* enemies currently swarm toward whichever colonist is nearest (see [Pathfinding](#pathfinding-a-and-flow-fields-implemented-from-scratch) below); the intent is for the AI to eventually evaluate the player's defences and route around strongpoints toward weaker ones. Worth being upfront about that distinction if this comes up in an interview.
 
-<video src="readme_assets/Gif.mp4" controls width="100%">
-  Your browser doesn't support inline video — <a href="readme_assets/Gif.mp4">download the clip</a> directly.
+<video src="README_Assets/Gif.mp4" controls width="100%">
+  Your browser doesn't support inline video — <a href="README_Assets/Gif.mp4">download the clip</a> directly.
 </video>
 
 ---
@@ -31,8 +31,6 @@ Two complementary pathfinding systems, chosen for what each is actually good at 
 - **A\*** (`ai/a_star.rs`) drives player-directed colonist movement — 8-directional, non-uniform movement cost (cardinal = 10, diagonal = 14, approximating √2×10) with a Chebyshev heuristic scaled to match and stay admissible. Includes no-corner-cutting (a diagonal move is rejected if either bordering cardinal tile is a wall) and lazy deletion in the open set to avoid the overhead of a decrease-key operation.
 - **Flow fields** (`ai/flow_fields.rs`) drive enemy swarm movement — a single Dijkstra expansion computes a direction-to-nearest-goal for *every* reachable tile at once, so N enemies converging on colonist positions cost one shared O(map) computation instead of N independent path searches. Multiple simultaneous goals fall out for free by seeding them all into the priority queue at cost 0 before the search starts.
 
-> **TODO (you):** capture a GIF showing a dozen+ enemies pathing around a wall you've just built, ideally with the flow field's "shared computation" behavior visible — e.g. build a wall mid-swarm and show every enemy re-route in the same frame.
-
 ### Data-oriented architecture (Bevy ECS)
 
 The whole simulation — colonists, enemies, tiles, combat, UI — is built as composable components and systems rather than an inheritance hierarchy or a handful of monolithic "God objects." A few decisions worth pointing at specifically:
@@ -48,7 +46,7 @@ The enemy separation system (`separate_enemies`) is a pairwise repulsion check b
 
 The fix isn't implemented yet — it's a spatial hash or grid-based neighbour lookup, so separation only checks nearby enemies instead of the entire population. That's a known, scoped next step, not a mystery bottleneck; the measurement above is what motivates prioritizing it.
 
-Horde footage is at the top of this README (`readme_assets/Gif.mp4`).
+Horde footage is at the top of this README (`README_Assets/Gif.mp4`).
 
 ### Real-time sprite animation system
 
@@ -63,18 +61,6 @@ A shared, entity-type-agnostic frame-advance system serves colonists today and i
 - RTS-style unit selection: click-to-select-nearest and drag-box multi-select, both replacing rather than additively stacking selection (implemented via a lightweight `DragSelection` resource and a pixel-distance threshold to disambiguate a click from the start of a drag).
 - Destructible/buildable tiles with passability that's *always* derived from tile type (`is_passable()`) rather than tracked as a separate, potentially-desynced field.
 - Attacker/Target components support both autonomous "nearest enemy in range" combat and player-directed "attack this specific target" spot orders, with automatic fallback to autonomous mode if a spotted target despawns mid-fight.
-
----
-
-## Screenshots & video
-
-This section is the actual selling point of the whole document — nothing above matters to a reviewer who can't see it running. Capture list, roughly in priority order:
-
-1. ~~**Hero clip** (10-15s) — colony overview mid-swarm~~ — done, `readme_assets/Gif.mp4`, embedded at the top of this README.
-2. **Pathfinding demo** — flow field re-routing around a freshly placed wall.
-3. **Animation state demo** — idle → walk → attack transition on one colonist.
-4. **Selection demo** — drag-box select, then a click-to-move order.
-5. **HUD close-up** — the life-support resource bar.
 
 ---
 
