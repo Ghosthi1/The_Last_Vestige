@@ -29,8 +29,10 @@ use crate::ui::life_support::LifeSupportPlugin;
 use crate::ui::UiPlugin;
 use crate::animation::AnimationPlugin;
 use crate::animation::ColonistAnimationPlugin;
-use crate::ui::fps_counter::FpsCounterPlugin;
-use crate::ui::enemy_counter::EnemyCounterPlugin;
+
+// Debug //
+// use crate::ui::fps_counter::FpsCounterPlugin;
+// use crate::ui::enemy_counter::EnemyCounterPlugin;
 
 fn main() {
     App::new()
@@ -41,8 +43,11 @@ fn main() {
         .add_plugins((EnemySpawnerPlugin, ColonistSpawnerPlugin, map::MapRendererPlugin, CharacterPlugin,
                       AiPlugin, EnemyPlugin, CameraPlugin, BuildingPlugin, AmbientPlugin, SelectionPlugin, CombatPlugin, DeathPlugin,
                       UiPlugin,LifeSupportPlugin, AnimationPlugin))
-        .add_plugins((ColonistAnimationPlugin, FpsCounterPlugin, EnemyCounterPlugin))
+        .add_plugins((ColonistAnimationPlugin))
+        // Debug //
         // .add_systems(Update, debug)
+        // .add_plugins((FpsCounterPlugin, EnemyCounterPlugin))
+
         .run();
 }
 
