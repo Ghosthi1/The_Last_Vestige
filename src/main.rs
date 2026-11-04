@@ -10,6 +10,7 @@ mod combat;
 mod death;
 mod ui;
 mod animation;
+mod debugs;
 
 use bevy::prelude::*;
 use bevy_ecs_tilemap::TilemapPlugin;
@@ -29,10 +30,7 @@ use crate::ui::life_support::LifeSupportPlugin;
 use crate::ui::UiPlugin;
 use crate::animation::AnimationPlugin;
 use crate::animation::ColonistAnimationPlugin;
-
-// Debug //
-// use crate::ui::fps_counter::FpsCounterPlugin;
-// use crate::ui::enemy_counter::EnemyCounterPlugin;
+use crate::debugs::DebugPlugin;
 
 fn main() {
     App::new()
@@ -44,23 +42,9 @@ fn main() {
                       AiPlugin, EnemyPlugin, CameraPlugin, BuildingPlugin, AmbientPlugin, SelectionPlugin, CombatPlugin, DeathPlugin,
                       UiPlugin,LifeSupportPlugin, AnimationPlugin))
         .add_plugins((ColonistAnimationPlugin))
+
         // Debug //
-        // .add_systems(Update, debug)
-        // .add_plugins((FpsCounterPlugin, EnemyCounterPlugin))
+        .add_plugins(DebugPlugin)
 
         .run();
 }
-
-////////////////////////////////////////
-// Creates Lines so the grid is visible
-///////////////////////////////////////
-// fn debug(mut gizmos: Gizmos){
-//     for i in 0..=MAP_WIDTH{
-//         let x = -(MAP_WIDTH as f32 * TILE_SIZE / 2.0) + i as f32 * TILE_SIZE;
-//         gizmos.line_2d( Vec2::new(x, -(MAP_HEIGHT as f32 * TILE_SIZE / 2.0)),  Vec2::new(x, MAP_HEIGHT as f32 * TILE_SIZE / 2.0), Color::WHITE)
-//     }
-//     for j in 0..=MAP_HEIGHT{
-//         let y = -(MAP_HEIGHT as f32 * TILE_SIZE / 2.0) + j as f32 * TILE_SIZE;
-//         gizmos.line_2d(  Vec2::new(-(MAP_WIDTH as f32 * TILE_SIZE / 2.0), y), Vec2::new(MAP_WIDTH as f32 * TILE_SIZE / 2.0, y), Color::WHITE)
-//     }
-// }

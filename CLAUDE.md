@@ -204,6 +204,9 @@ src/
   death/
     mod.rs         # Declares submodule, re-exports DeathPlugin
     death.rs       # DeathPlugin; tag_dead system (generic, ordered .after(colonist_attack).after(enemy_attack)); dead_enemies_handler, dead_colonists_handler (each .after(tag_dead)) — split out of combat/ so unrelated plugins (loot, animation, morale) can order against tag_dead without depending on combat internals
+  debugs/
+    mod.rs         # Declares debugs submodule, re-exports DebugPlugin
+    debugs.rs      # DebugPlugin; DebugSettings resource (grid_lines: bool); controls system (F1 sets grid_lines); grid_lines system (gizmo grid over the map, early-returns when off)
   ui/
     mod.rs         # Declares hud submodule, re-exports UiPlugin
     hud.rs         # UiPlugin; LifeSupport resource; spawn_hud_root Startup system — spawns the full-screen root Node all HUD panels are children of
@@ -343,7 +346,7 @@ All current art is placeholder (see [Art](#art-decided)).
 
 - **Texture sampler** — `DefaultPlugins.set(ImagePlugin::default_nearest())` in `main.rs` sets nearest-neighbor sampling globally; this keeps the current placeholder pixel art crisp at all zoom levels — Bevy's default bilinear sampler blurs upscaled sprites. Final art is pre-rendered Blender sprites (see [Art](#art-decided)), not pixel art, so revisit this global setting when that art comes in
 - **Tilemap transform offset** — `bevy_ecs_tilemap` centers each tile's sprite at its grid position in local space, so tile `(0,0)` is centered at the tilemap entity's `Transform` origin. To align with the character/gizmo coordinate system (where tile centers sit at `tx * TILE_SIZE + TILE_SIZE/2 - MAP_WIDTH * TILE_SIZE/2`), the tilemap transform must be `-(map.width * TILE_SIZE)/2 + TILE_SIZE/2` in x and the same in y — without the `+ TILE_SIZE/2` the tiles appear shifted half a tile left/down relative to all other coordinate systems
-- **Debug grid overlay disabled** — `main.rs`'s `debug` fn (draws `Gizmos` grid lines over the whole map) and its `.add_systems(Update, debug)` registration are both commented out, not deleted; it was a dev-only visual aid, superseded by the tile art itself being legible enough without it. Re-enable by uncommenting both the fn and the registration line if grid-line debugging is needed again
+- **Debug tooling lives in `DebugPlugin`** (`debugs/debugs.rs`) — all debug-only features go in this one plugin so removing `.add_plugins(DebugPlugin)` from `main.rs` disables them all. `DebugSettings` resource holds per-feature toggle flags (currently just `grid_lines`), inserted by the plugin itself so it disappears with the plugin. `controls` reads keyboard input (`Res<ButtonInput<KeyCode>>`) and writes flags (`ResMut<DebugSettings>`); each debug system reads its flag via `Res<DebugSettings>` and early-returns when off. The gizmo grid overlay (formerly the commented-out `debug` fn in `main.rs`) moved here as `grid_lines`, toggled by F1. Gizmo lines are redrawn every frame (~`MAP_WIDTH + MAP_HEIGHT` lines) — fine for debug at the current map size, but not at the target ~5120 map; the `LineList` mesh noted under [Tile System](#tile-system) is the long-term approach
 
 ### Camera
 
