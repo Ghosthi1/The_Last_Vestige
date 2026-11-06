@@ -16,7 +16,7 @@ cargo fmt            # format
 
 **The Last Vestige** — a 2D sci-fi colony builder / horde survival game set aboard a derelict ship (see [Game Vision](#game-vision)).
 
-- Engine: Bevy 0.19.0
+- Engine: Bevy 0.20.1
 - Camera: orthographic 2D (art is drawn from a steep three-quarter view, see [Art](#art-decided))
 - Platforms: PC (Windows + Linux) and Steam Deck first; Xbox/PlayStation are on the back shelf
 - Entry point: `src/main.rs`
@@ -105,6 +105,9 @@ Inspirations: RimWorld, Dwarf Fortress, Space Haven, Songs of Syx, Sir, We Have 
   3. **Individuals:** full entities near colonists/defences.
 - Split/merge with hysteresis. **Tier distances are fixed and never tied to graphics settings.** Spawn into loaded chunks at their borders, spread over frames.
 - Build individuals first; add blobs when profiling calls for it.
+- **Guiding principle:** do the least work per enemy that the player can't notice. Distance decides the level of detail: full individual behaviour near colonists, condensed groups far away. Condensing is only a simulation shortcut, so the horde must still look huge on screen.
+- **What tiers don't fix:** per-frame allocations and map-sized arrays stay the same whatever the enemy count, and a fight in an open bay can still put thousands of individuals near colonists, so the spatial hash is still needed.
+- **Staggered updates (suggested, not decided):** update only a fraction of far-away enemies each frame to spread out the CPU cost. Distances would have to be fixed and independent of graphics settings, like the tier distances.
 - **"Sea of enemies" look:** desynced animations (random start offsets); scale/tint/variant variation; soft separation; noise on flow direction; density-driven pile-ups at walls/doors (sprites drawn larger, nudged up, darkened underneath where density is high); far blobs rendered as a density-masked "crawling carpet" shader.
 - **Worm creature:** fills a whole corridor; a common event the enemy director can spawn. Only the head pathfinds (own cost field, can tunnel); segments follow its trail. It isn't part of the flow fields: it crushes or pushes whatever is in its tiles (including the horde). Needs clear, repeatable tells and buildable counters (bulkheads, reinforced walls, traps).
 
@@ -155,16 +158,21 @@ Inspirations: RimWorld, Dwarf Fortress, Space Haven, Songs of Syx, Sir, We Have 
 
 Files have specific, focused responsibilities — keep things clean and tidy. One file should not do many unrelated jobs. Prefer one plugin per feature area.
 
+**`constants.rs`** is a temporary home for values being tweaked; most are expected to move out once settled. Groups are wrapped in `// region` / `// endregion` comments so RustRover can fold them. When moving a value out:
+- Keep anything used in several places as a shared named constant (`TILE_SIZE`, `MAP_WIDTH`, `MAP_HEIGHT`, `OFFSETS`).
+- Make single-use values a private `const` at the top of the file that uses them, rather than a bare number in the code.
+- Per-type or per-floor values (enemy stats, room parameters) become data once there's more than one type or floor style.
+
 ## Module Structure
 
 ```
 src/
   main.rs          # App entry point, startup systems
-  constants.rs     # Shared constants — TILE_SIZE, MAP_WIDTH, MAP_HEIGHT, OFFSETS, ENEMY_SPEED, ENEMY_STOP_RADIUS, ENEMY_SEPARATION_STRENGTH, ENEMY_HEALTH, ENEMY_RANGE, ENEMY_DAMAGE, ENEMY_COUNT, ENEMY_SPAWN_EDGE_BAND, COLONIST_HEALTH, COLONIST_SPEED, COLONIST_RANGE, COLONIST_DAMAGE
+  constants.rs     # Shared constants — TILE_SIZE, MAP_WIDTH, MAP_HEIGHT, OFFSETS, ENEMY_SPEED, ENEMY_STOP_RADIUS, ENEMY_SEPARATION_STRENGTH, ENEMY_HEALTH, ENEMY_RANGE, ENEMY_DAMAGE, ENEMY_COUNT, ENEMY_SPAWN_EDGE_BAND, COLONIST_HEALTH, COLONIST_SPEED, COLONIST_RANGE, COLONIST_DAMAGE, CAMERA_WASD_SPEED, CAMERA_MAX_ZOOM, CAMERA_MIN_ZOOM, CAMERA_ZOOM_SPEED
   map/
     mod.rs         # Declares submodules, re-exports Map, TileData, TileType, MapRendererPlugin
     map.rs         # TileType, TileData, Map struct and constructor — no generation logic; cursor_to_grid(camera, camera_transform, cursor_pos, map) shared utility
-    map_gen.rs     # Map generation logic
+    map_gen.rs     # Room struct (private); carve_room; generate_map — fills the map with wall, then carves rooms out of it
     map_renderer.rs # Spawns and manages bevy_ecs_tilemap entities from Map resource
   ai/
     mod.rs         # Declares submodules
@@ -196,7 +204,7 @@ src/
     buildings.rs   # BuildingPlugin; TileChangedEvent; place_wall_on_click, on_tile_change, on_tile_passability_change systems
   systems/
     mod.rs         # Declares camera and sound submodules, re-exports both
-    camera.rs      # CameraPlugin; setup (Startup — spawns Camera2d); zoom_camera (scroll wheel, multiplicative scale on OrthographicProjection); pan_camera (middle mouse drag, delta scaled by ortho.scale)
+    camera.rs      # CameraPlugin; CameraTruePosition component; setup (Startup — spawns Camera2d); zoom_camera (scroll wheel, multiplicative scale on OrthographicProjection); pan_camera (middle mouse drag, delta scaled by ortho.scale); camera_wasd_move (WASD, scaled by ortho.scale); snap_camera_to_true_position (rounds Transform to the screen pixel grid)
     sound.rs       # AmbientPlugin; startup system that loads and spawns the looping ambient audio entity
   combat/
     mod.rs         # Declares submodule, re-exports CombatPlugin
@@ -206,10 +214,11 @@ src/
     death.rs       # DeathPlugin; tag_dead system (generic, ordered .after(colonist_attack).after(enemy_attack)); dead_enemies_handler, dead_colonists_handler (each .after(tag_dead)) — split out of combat/ so unrelated plugins (loot, animation, morale) can order against tag_dead without depending on combat internals
   debugs/
     mod.rs         # Declares debugs submodule, re-exports DebugPlugin
-    debugs.rs      # DebugPlugin; DebugSettings resource (grid_lines: bool); controls system (F1 sets grid_lines); grid_lines system (gizmo grid over the map, early-returns when off)
+    debugs.rs      # DebugPlugin; DebugSettings resource (grid_lines, ui_elements: bool); DebugUi marker; controls system (F1 toggles grid_lines, F2 toggles ui_elements); grid_lines system (gizmo grid over the map, early-returns when off); ui_elements system (shows/hides everything tagged DebugUi); enemy counter and FPS counter text
   ui/
-    mod.rs         # Declares hud submodule, re-exports UiPlugin
-    hud.rs         # UiPlugin; LifeSupport resource; spawn_hud_root Startup system — spawns the full-screen root Node all HUD panels are children of
+    mod.rs         # Declares hud and life_support submodules, re-exports hud
+    hud.rs         # UiPlugin; OxygenText, FoodText, WaterText, EnergyText markers; spawn_hud_root Startup system — spawns the full-screen root Node and the life-support bar; update_life_support_hud system (runs only when LifeSupport changes)
+    life_support.rs # LifeSupportPlugin; LifeSupport resource
 ```
 
 ### Assets
@@ -293,7 +302,7 @@ All current art is placeholder (see [Art](#art-decided)).
   - `EnemyAnimationState` enum — `Idle`, `Walk`, `Attack`, `Death`; same derives; unused (`dead_code`) until enemy animation wiring exists, which is expected
   - `AnimationPlayback` component — `image: Handle<Image>`, `layout: Handle<TextureAtlasLayout>`, `frame_index: usize`, `frame_count: usize`, `timer: Timer`; `#[derive(Component)]`; entity-type-agnostic — doesn't know if it's attached to a colonist or enemy, only the per-entity-type "decide" systems know that. `decide_colonist_animation` (`animation/colonist_animation.rs`) is built; the enemy equivalent is not — enemies don't carry an `AnimationPlayback` at all yet, so `EnemyAnimationState` remains unused
   - re-exported through `components/mod.rs` (`pub mod animation;` / `pub use animation::*;`), same pattern as `combat`/`movement`/`selected`
-- **Mechanism** — Bevy 0.19's `Sprite` has a `texture_atlas: Option<TextureAtlas>` field, where `TextureAtlas { layout: Handle<TextureAtlasLayout>, index: usize }`. Changing which sub-frame is shown = changing `index`. Changing which *animation* is shown (idle → walk) = swapping `Sprite.image` itself, since each animation state lives in its own sheet file (see [Assets](#assets))
+- **Mechanism** — Bevy's `Sprite` has a `texture_atlas: Option<TextureAtlas>` field, where `TextureAtlas { layout: Handle<TextureAtlasLayout>, index: usize }`. Changing which sub-frame is shown = changing `index`. Changing which *animation* is shown (idle → walk) = swapping `Sprite.image` itself, since each animation state lives in its own sheet file (see [Assets](#assets))
 - **Two shared layouts for the knight, not six** — `attack`/`carry`/`idle`/`walk`/`work` all share identical grid geometry (4 cols × 2 rows × 128px), so one `TextureAtlasLayout` built via `TextureAtlasLayout::from_grid` covers all five; `sleep`'s 2×1 grid needs a second, separate layout. A layout is index math only — it doesn't care which image it's paired with
 - **Row/column = skin colour, not direction** — on the 4×2 sheets, silver is row 0 (atlas indices 0–3), bronze is row 1 (indices 4–7); on `sleep`, silver = index 0, bronze = index 1 (single static frame each)
 - **Module placement: shared `animation/` module, not nested in `colonists/`** — mirrors why `death/` split out of `combat/`: once more than one entity type needs to react independently (there, loot/morale/animation reacting to `Dead`; here, colonists and enemies both needing frame playback), splitting out avoids duplicating near-identical systems
@@ -330,6 +339,7 @@ All current art is placeholder (see [Art](#art-decided)).
 - **System ordering:** `separate_enemies.before(move_enemy)`, `move_enemy.after(rebuild_colonist_flow_field)` — separation is applied before flow-field movement each frame; flow field is always current before enemies read it
 - **Spawn:** `spawn_enemy` lives in `enemy_spawner.rs` under `EnemySpawnerPlugin`; enemy bundle is `Enemy`, `GridPosition`, `Health::new(ENEMY_HEALTH)`, `Speed(ENEMY_SPEED)`, `Sprite`, `Transform`, `Attacker::new(ENEMY_DAMAGE, ENEMY_RANGE, Timer)`; texture handle must be `.clone()`d for every spawn call since `Handle<Image>` is moved on first use; `GridPosition` and `Transform` must be initialised from the same grid coordinates; constants in `constants.rs`
 - **Horde spawn mode (temporary, for capturing footage)** — `spawn_enemy` currently spawns `ENEMY_COUNT` enemies (`constants.rs`) at random passable tiles within `ENEMY_SPAWN_EDGE_BAND` tiles of the map's four borders, replacing the three hardcoded spawn positions this was built with. Marked with a doc comment as temporary — intended to be replaced with real wave/spawn-point logic (see [Horde](#horde) and [Enemy director](#enemy-director)) once that is built, not a permanent feature
+- **Known hang risk in `spawn_enemy`** — its `while spawned < ENEMY_COUNT` loop retries until it finds enough passable edge-band tiles and has no attempt limit. On the wall-filled map, the edge band can contain no floor at all, so any `ENEMY_COUNT` above `0` can freeze startup forever. `ENEMY_COUNT` is `0` for now while map generation is being built
 - **Known performance ceiling** — `separate_enemies`' pairwise separation loop is O(N²); measured on dev hardware, `ENEMY_COUNT = 5000` holds ~80fps, while `8000` drops well below 30fps and reads as visibly stuttery. `5000` was chosen as the value used for README/portfolio footage specifically because it's the largest count that stayed smooth, not because it's a target for real gameplay. **The actual fix** — replacing the O(N²) pairwise scan with a spatial hash or grid-based neighbour lookup (already listed under [Planned Features / TODO](#planned-features--todo) as "Spatial queries") — has not been done; this measurement is the concrete evidence for why that refactor matters, not a substitute for it
 
 ### Buildings
@@ -339,20 +349,22 @@ All current art is placeholder (see [Art](#art-decided)).
 - **`place_wall_on_click`** — handles left-click input only; converts cursor to grid via `cursor_to_grid`, mutates `Map`, fires `TileChangedEvent`; no pathfinding or rendering logic
 - **`on_tile_change`** — visual listener; updates `TileTextureIndex` on the tilemap entity for the changed tile; `TileStorage::single()` is resolved once before the event loop
 - **`on_tile_passability_change`** — pathfinding listener; rebuilds the colonist flow field once per frame (regardless of how many tile-change events fired), then clears any colonist `Path` that contains the changed tile coordinate; uses `Local<Vec<(u32,u32)>>` as a reusable positions buffer
-- **`cursor_to_grid`** — shared utility in `map/map.rs`; takes `&Camera`, `&GlobalTransform`, `Vec2` cursor pos, `&Map`; returns `Option<(u32, u32)>`; used by both `place_wall_on_click` and `move_to_click` in `characters.rs`
+- **`cursor_to_grid`** — shared utility in `map/map.rs`; takes `&Camera`, `&GlobalTransform`, `Vec2` cursor pos, `&Map`; returns `Option<(u32, u32)>`; used by both `place_wall_on_click` and `move_to_click` in `characters.rs`. **Known bug:** its bounds check joins the x and y tests with `||`, so it only returns `None` when the cursor is out of bounds on both axes; it needs `&&`
 - See [Player building (goal)](#player-building-goal) for where this is heading (menu, ghost preview, multi-cell, costs)
 
 ### Rendering
 
 - **Texture sampler** — `DefaultPlugins.set(ImagePlugin::default_nearest())` in `main.rs` sets nearest-neighbor sampling globally; this keeps the current placeholder pixel art crisp at all zoom levels — Bevy's default bilinear sampler blurs upscaled sprites. Final art is pre-rendered Blender sprites (see [Art](#art-decided)), not pixel art, so revisit this global setting when that art comes in
 - **Tilemap transform offset** — `bevy_ecs_tilemap` centers each tile's sprite at its grid position in local space, so tile `(0,0)` is centered at the tilemap entity's `Transform` origin. To align with the character/gizmo coordinate system (where tile centers sit at `tx * TILE_SIZE + TILE_SIZE/2 - MAP_WIDTH * TILE_SIZE/2`), the tilemap transform must be `-(map.width * TILE_SIZE)/2 + TILE_SIZE/2` in x and the same in y — without the `+ TILE_SIZE/2` the tiles appear shifted half a tile left/down relative to all other coordinate systems
-- **Debug tooling lives in `DebugPlugin`** (`debugs/debugs.rs`) — all debug-only features go in this one plugin so removing `.add_plugins(DebugPlugin)` from `main.rs` disables them all. `DebugSettings` resource holds per-feature toggle flags (currently just `grid_lines`), inserted by the plugin itself so it disappears with the plugin. `controls` reads keyboard input (`Res<ButtonInput<KeyCode>>`) and writes flags (`ResMut<DebugSettings>`); each debug system reads its flag via `Res<DebugSettings>` and early-returns when off. The gizmo grid overlay (formerly the commented-out `debug` fn in `main.rs`) moved here as `grid_lines`, toggled by F1. Gizmo lines are redrawn every frame (~`MAP_WIDTH + MAP_HEIGHT` lines) — fine for debug at the current map size, but not at the target ~5120 map; the `LineList` mesh noted under [Tile System](#tile-system) is the long-term approach
+- **Debug tooling lives in `DebugPlugin`** (`debugs/debugs.rs`) — all debug-only features go in this one plugin so removing `.add_plugins(DebugPlugin)` from `main.rs` disables them all. `DebugSettings` resource holds per-feature toggle flags (`grid_lines`, `ui_elements`), inserted by the plugin itself so it disappears with the plugin. `controls` reads keyboard input (`Res<ButtonInput<KeyCode>>`) and writes flags (`ResMut<DebugSettings>`); each debug system reads its flag via `Res<DebugSettings>` and early-returns when off. The gizmo grid overlay (formerly the commented-out `debug` fn in `main.rs`) moved here as `grid_lines`, toggled by F1. The FPS and enemy counters moved here from `ui/`; both are tagged with the `DebugUi` marker, spawn `Visibility::Hidden`, and are shown or hidden together by `ui_elements`, toggled by F2. Gizmo lines are redrawn every frame (~`MAP_WIDTH + MAP_HEIGHT` lines) — fine for debug at the current map size, but not at the target ~5120 map; the `LineList` mesh noted under [Tile System](#tile-system) is the long-term approach
 
 ### Camera
 
 - **Spawn** — `setup` is a `Startup` system that spawns `Camera2d`; must be registered in `CameraPlugin::build` or nothing renders
-- **Zoom** — `zoom_camera` reads `Res<AccumulatedMouseScroll>` and applies a multiplicative scale change to `OrthographicProjection.scale` each frame: `scale = (scale * (1.0 - delta.y * sensitivity)).clamp(0.3, 3.0)`; sensitivity is `0.1`; multiplicative scaling feels consistent at all zoom levels; lower clamp bound is a UX decision — nearest-neighbor keeps pixels crisp but extreme zoom-in shows very large blocky pixels, so the clamp prevents unintentionally rough-looking close-up views
-- **Pan** — `pan_camera` checks `ButtonInput<MouseButton>::pressed(Middle)` and reads `Res<AccumulatedMouseMotion>`; translates the camera by the mouse delta multiplied by `ortho.scale` so panning speed stays consistent regardless of zoom level; x is negated (drag right = pan left), y is added as-is (screen and world y felt correct without negation)
+- **Zoom** — `zoom_camera` reads `Res<AccumulatedMouseScroll>` and applies a multiplicative scale change to `OrthographicProjection.scale` each frame: `scale = (scale * (1.0 - delta.y * CAMERA_ZOOM_SPEED)).clamp(CAMERA_MAX_ZOOM, CAMERA_MIN_ZOOM)`, currently `0.1` speed and a `0.3`–`3.0` clamp; multiplicative scaling feels consistent at all zoom levels; lower clamp bound is a UX decision — nearest-neighbor keeps pixels crisp but extreme zoom-in shows very large blocky pixels, so the clamp prevents unintentionally rough-looking close-up views
+- **Pan** — `pan_camera` checks `ButtonInput<MouseButton>::pressed(Middle)` and reads `Res<AccumulatedMouseMotion>`; moves `CameraTruePosition` by the mouse delta multiplied by `ortho.scale` so panning speed stays consistent regardless of zoom level; x is negated (drag right = pan left), y is added as-is (screen and world y felt correct without negation)
+- **WASD** — `camera_wasd_move` moves `CameraTruePosition` at `CAMERA_WASD_SPEED`, scaled by delta time and `ortho.scale`, so speed stays consistent at every zoom level
+- **Pixel snapping** — `CameraTruePosition(Vec2)` holds the unrounded camera position, and pan and WASD write only to it. `snap_camera_to_true_position` runs `.after()` `zoom_camera`, `pan_camera` and `camera_wasd_move`, then rounds it to a multiple of `ortho.scale` and writes that to `Transform`. Keeping the unrounded value separate means small movements aren't lost to rounding
 - **Projection access** — `OrthographicProjection` is not a standalone component in Bevy 0.18; access it via `Query<(&mut Transform, &Projection)>` and match `Projection::Orthographic(ref mut ortho)` to read or write `ortho.scale`
 - **Input resources** — Bevy 0.18 provides `AccumulatedMouseScroll` and `AccumulatedMouseMotion` as frame-accumulated resources; prefer these over `EventReader<MouseWheel>`/`EventReader<MouseMotion>` for per-frame input reading
 
@@ -370,7 +382,7 @@ All current art is placeholder (see [Art](#art-decided)).
 - **Grid coordinates are the source of truth for colonists** — colonist `Transform` is derived from `GridPosition`; for enemies the relationship is reversed: `Transform` is authoritative and `GridPosition` is derived from it each frame to support continuous swarming movement
 - **Parallel arrays for rare data:** primary array holds only hot data (tile type, passability); oxygen, temperature, etc. live in separate resources indexed the same way for cache efficiency; truly sparse properties (affects <~5% of tiles) use `HashMap<(u32, u32), T>` instead
 - **Keep `TileData` lean** — start small, add parallel resources only when actually needed
-- **Map is very large but bounded** (~5000×5000, 3 floors; see [World & map](#world--map)), generated in chunks revealed as the player works outward; fog of war hides unexplored chunks. The current code is a single fixed-size map. When the chunk system is built, fire a chunk-reveal event so dependent systems (grid overlay, pathfinding) can react
+- **Map is very large but bounded** (~5000×5000, 3 floors; see [World & map](#world--map)), generated in chunks revealed as the player works outward; fog of war hides unexplored chunks. The current code is a single fixed-size map (`MAP_WIDTH` × `MAP_HEIGHT`, currently 100×100). When the chunk system is built, fire a chunk-reveal event so dependent systems (grid overlay, pathfinding) can react
 - **Grid overlay deferred** — a `PrimitiveTopology::LineList` mesh is the right approach; build it once the chunk system exists so the mesh update hook has something to connect to
 - **`MapOffset` is fragile** — currently hardcoded in `main.rs` with the map size baked in; will break once chunks exist. Revisit when the chunk system is built — the offset should be derived from map state, not set once at startup
 
@@ -381,16 +393,41 @@ All current art is placeholder (see [Art](#art-decided)).
 - **Row-major sheet layout** — `assets/Floors/tilesheet_6x3_128px.png` is 6 columns × 3 rows of 128px tiles; `bevy_ecs_tilemap` slices a `TilemapTexture::Single` image row-major, so `index = row * 6 + column`. Row 0 = floor variants (columns 0–5 map directly to `floor_variant`), row 1 = wall (fixed at index `6`, no variants yet), row 2 = door (column 0 = closed → index `12`, column 1 = open → index `13`; column 2 is reserved for a locked state but `TileType::Door` only carries `is_open: bool` so far, so locked is unimplemented)
 - **Generation:** `generate_map` (`map/map_gen.rs`) rolls a weighted-random `floor_variant` per tile via `rand::distr::weighted::WeightedIndex` (weights `[50, 10, 10, 10, 1, 10]` — variant 0 dominant, the rest sprinkled in, one intentionally rarer) and `rand::rng()` for the thread-local source; `WeightedIndex::sample` requires the `rand::prelude::Distribution` trait in scope
 
+### Map Generation
+
+- **Status: in progress** — this is the start of the "rooms and mazes" generator in [Procedural generation](#procedural-generation). `generate_map` fills the whole map with `TileType::Wall`, then carves one hardcoded room. Random room placement is the next step (see below)
+- **Wall first, then carve** — every tile starts as wall and generation only opens up floor. Each tile still gets a `floor_variant` during the fill, so carved tiles get their random floor look without another roll
+- **`Room` struct** — private to `map/map_gen.rs`; `pos: (u32, u32)` is the bottom-left corner, plus `width: u32` and `height: u32`. `pos` is a tuple to match `GridPosition`, `Path` and `find_path`. Rooms are kept as data because overlap checks, doors and room types all need them after carving
+- **`carve_room(map: &mut Map, room: &Room)`** — sets every tile in the rectangle to `TileType::Floor`. It borrows the `Room` so rooms can live in a `Vec<Room>` afterwards. `y` is the outer loop and `x` the inner one, matching the `x + y * width` layout so memory is walked in order
+- **Hardcoded start room** — `pos: (25, 25)`, 20×20. It has to cover the colonists' hardcoded spawns, `(30, 30)` and `(35, 35)`, or they start inside wall
+- **Next step: random placement** — keep the hardcoded room first in a `Vec<Room>`, loop `ROOM_ATTEMPTS` times rolling a size between `ROOM_MIN_SIZE` and `ROOM_MAX_SIZE` and a position that leaves a one-tile wall border, push each `Room`, then carve them all at the end. These constants don't exist yet. `random_range` needs `use rand::RngExt;` in rand 0.10. An overlap check comes after that
+
 ### HUD / UI
 
 - **Tool choice: native `bevy_ui`** — considered `bevy_egui` (rejected: immediate-mode look reads as editor/debug UI, not a diegetic in-game HUD) and `bevy_lunex` (rejected for now: better suited to non-rectangular/angular HUD layout, but a smaller third-party crate carrying the same version-lag risk that blocked the Bevy 0.19 upgrade with `bevy_ecs_tilemap`); modern `bevy_ui` (rounded corners, box shadows, gradients) covers the sci-fi panel look via 9-slice panel textures and translucent `BackgroundColor`s without that dependency risk — a custom `UiMaterial`/WGSL shader is the fallback for animated effects (scanlines, pulsing glow) if plain nodes aren't enough
 - **Root node pattern** — `UiPlugin::build` registers `spawn_hud_root` on `Startup`; it spawns a single entity with `Node { width: Val::Percent(100.0), height: Val::Percent(100.0), ..default() }` as the parent every HUD panel will be a child of; `BackgroundColor` was added temporarily to visually confirm the node's placement/size, then removed — the root itself must stay invisible (an opaque full-screen `BackgroundColor` blocks the world view underneath), visible color belongs only on child panels sized to their own content
 - **Resource bar categorisation** — the top bar is split by urgency rather than shown as one flat row of icons: **life-support** (oxygen, food, water, energy) is always visible and built first, since zero on any of these means colonists start dying; **population** is a colony-status count, not a depletable resource, so it gets its own slot rather than sitting in the resource-bar style; **stockpile materials** (scrap metal, refined metals, bullets) are deferred — likely belong in a build/loadout panel where they're actually spent rather than the always-on HUD bar, with ammo count as a possible exception since combat is real-time
-- **`LifeSupport` resource** — lives in `ui/hud.rs`; private `oxygen: f32`, `food: f32`, `water: f32`, `energy: f32` fields, `#[derive(Resource)]`; starting values (`100.0` each) are set via a `Default` impl rather than a struct literal, since the fields are private and `main.rs` (a different module) can't construct a struct literal with private fields — `main.rs` inserts it via `.insert_resource(LifeSupport::default())`, same shape as the existing `FlowFields::default()` line; no accessor methods yet since nothing outside `hud.rs` reads or mutates it
-- **Current status:** `LifeSupport` resource in place and inserted; next up is spawning the four life-support values as `Text` children of the root node (`spawn_hud_root` gains a `Res<LifeSupport>` param, children added via `.with_children(...)`), each tagged with its own marker component (`OxygenText`, `FoodText`, `WaterText`, `EnergyText`) so a later update-on-change system can find the right entity to update when `LifeSupport` changes; text display is plain `"Label: value"` strings — no bars or icons for the life-support group
+- **`LifeSupport` resource** — lives in `ui/life_support.rs`; `pub` `oxygen: f32`, `food: f32`, `water: f32`, `energy: f32` fields, `#[derive(Resource)]`; starting values (`100.0` each) come from a `Default` impl; inserted by `LifeSupportPlugin`, which is added in `main.rs`
+- **Life-support bar** — `spawn_hud_root` spawns a 40px translucent bar as a child of the root node, with four `Text` children tagged `OxygenText`, `FoodText`, `WaterText` and `EnergyText`; text is plain `"Label: value"` strings, with no bars or icons
+- **`update_life_support_hud` system** — rewrites the four texts, gated by `.run_if(resource_exists_and_changed::<LifeSupport>)` so it does nothing on frames where the values didn't change; uses a `ParamSet` because all four queries take `&mut Text`, which Bevy would otherwise reject as conflicting access. Nothing mutates `LifeSupport` yet, so the values stay at `100`
 - Longer term, see [UI & input](#ui--input) (controller support, UI swapping by active input device)
 
-## Bevy 0.19 Upgrade Notes
+### Memory & Performance Review
+
+Reviewed by reading the code on 2026-11-06, not by profiling. Sizes are calculated estimates. None of the problems below have been fixed yet.
+
+- **Stack:** no concerns; only small values and short-lived locals, with no recursion in these systems
+- **Working well:** small, separate components suit ECS's packed arrays; `Map` and `FlowField` are flat arrays; `FlowField` and `rebuild_colonist_flow_field` reuse their buffers; the `Vec<Vec2>` snapshot in `separate_enemies` packs 8 bytes per enemy instead of reading a ~48-byte `Transform`
+- **Per-frame heap allocations (breaks the "no allocations in per-frame code" rule):** about nine each frame, in `move_enemy`, `separate_enemies` (2), `separate_colonists` (2), `enemy_attack`, `colonist_attack`, `decide_colonist_animation` and `move_character` (`HashSet`). The `Vec::new()` + `push` snapshots also reallocate as they grow. `Local<Vec<...>>` avoids both
+- **`find_path` allocations:** three map-sized arrays per call, so moving a group of colonists allocates them once per colonist
+- **Wasted maths in `separate_enemies`:** `diff.length()` runs a square root before the distance check rejects the pair; about 12.5 million pairs per frame at 5000 enemies. Comparing `length_squared()` first skips most of them; only a spatial hash fixes the O(N²) itself
+- **Colonist × enemy scans:** `enemy_attack`, `colonist_attack` and `decide_colonist_animation` each compare every colonist with every enemy, which multiplies with no colonist limit
+- **`TileData` size:** about 8 bytes because `floor_variant` is a `u32` holding 0–5; as a `u8` it would be about 2 bytes
+- **Whole-map arrays at target size (5120×5120, per floor):** `Map` ~210MB (~52MB with a `u8` variant), each `FlowField` ~183MB, each `find_path` call ~236MB. `FlowFields` allocates three layers though only `colonists` is used, which would be about 1.6GB across 3 layers and 3 floors. `build_flow_fields` also refills the whole field whenever a colonist changes tile. Chunks need to solve this, rather than these arrays scaling up
+
+## Bevy Upgrade Notes
+
+Now on **Bevy 0.20.1** with `bevy_ecs_tilemap` `0.20.0` and `rand` `0.10.3`, bumped in commit `738ef02`. No 0.20-specific migration notes were recorded. The notes below are from the 0.19 upgrade.
 
 Upgraded from 0.18.1 to **Bevy 0.19.0** (`bevy_ecs_tilemap` bumped to `0.19.0` alongside it, resolving the prior blocker). `cargo build` is clean with no source changes required beyond `Cargo.toml`.
 
@@ -400,15 +437,15 @@ Upgraded from 0.18.1 to **Bevy 0.19.0** (`bevy_ecs_tilemap` bumped to `0.19.0` a
 - **Scene system renamed** (`bevy_scene` → `bevy_world_serialization`) — no impact; scenes aren't used yet, revisit naming when they are
 - **Rendering pipeline overhaul** — no impact; no custom render code in this project, `map_renderer.rs` builds and runs unaffected
 
-If new breaking changes surface while working in 0.19, add them here.
+If new breaking changes surface while working in 0.20, add them here.
 
 ## Planned Features / TODO
 
 - **Sprite animations / sprite sheets** — in progress for the knight colonist, see [Character Animation](#character-animation) (Idle/Walk/Attack wired; Carry/Work/Sleep, skin colour and enemy animation still to build); current sheets are placeholders until the Blender pipeline is running
 - **Game saves (binary serialization)** — serialize world state (map, colonist positions/health, enemy state, buildings) to a compact binary format for save/load; consider `bincode` + `serde` derives or a custom flat-buffer approach for performance
 - **Spatial queries** — replace O(N²) nearest-neighbour loops in combat and separation systems with a spatial structure; candidates: KD-tree (static or semi-static entities) or spatial hashing (dynamic, grid-aligned entities like colonists and enemies)
-- **Procedural generation** — replace the current `map_gen.rs` with the layered generator described in [Procedural generation](#procedural-generation) (macro noise → rooms and mazes → clutter, 3 floor styles, lifts), hooked into the chunk system so new chunks generate on reveal
+- **Procedural generation** — in progress, see [Map Generation](#map-generation); grow `map_gen.rs` into the layered generator described in [Procedural generation](#procedural-generation) (macro noise → rooms and mazes → clutter, 3 floor styles, lifts), hooked into the chunk system so new chunks generate on reveal
 - **Chunks & 3 floors** — see [World & map](#world--map)
 - **Horde tiers, enemy director, worm** — see [Horde](#horde) and [Enemy director](#enemy-director)
 - **Colonist scale, jobs & automation, stories, possession** — see [Colonists](#colonists) and [Possession](#possession-hero-moment)
-- **UI** — in progress, see [HUD / UI](#hud--ui); tool decided (`bevy_ui`), root node in place, life-support resource group underway; still open: population slot, stockpile materials panel, colonist status bars, selected-unit info panel, minimap, build menu
+- **UI** — in progress, see [HUD / UI](#hud--ui); tool decided (`bevy_ui`), root node and life-support bar in place; still open: population slot, stockpile materials panel, colonist status bars, selected-unit info panel, minimap, build menu
