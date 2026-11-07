@@ -1,5 +1,5 @@
 ﻿use super::map::Map;
-use crate::constants::{ROOM_ATTEMPTS, ROOM_MAX_SIZE, ROOM_MIN_SIZE, CORRIDOR_WIDTH, CORRIDOR_WIDTH_WEIGHTS};
+use crate::constants::{ROOM_ATTEMPTS, ROOM_MAX_SIZE, ROOM_MIN_SIZE, CORRIDOR_WIDTH, CORRIDOR_WIDTH_WEIGHTS, EXTRA_LINKS};
 use crate::map::TileType;
 use rand::distr::weighted::WeightedIndex;
 use rand::prelude::Distribution;
@@ -77,6 +77,31 @@ fn link_rooms(rooms: &[Room]) -> Vec<(usize, usize)> {
         connected[best_pair.1] = true;
     }
     links
+}
+
+/// Adds extra links between rooms to create loops in the map
+fn extra_links(rooms: &[Room], links: &mut Vec<(usize, usize)>, rng: &mut impl Rng) {
+    for _ in 0..EXTRA_LINKS {
+        let a = rng.random_range(0..rooms.len());
+        let mut best_distance:u32 = u32::MAX;
+        let mut best_room = None;
+
+        for b in 0..rooms.len() {
+            if a == b || links.contains(&(a, b)) || links.contains(&(b, a)) {
+                continue;
+            }
+            let distance = rooms[a].distance_to(&rooms[b]);
+            if distance < best_distance {
+                best_distance = distance;
+                best_room = Some(b);
+            }
+        }
+
+        if let Some(b) = best_room {
+            links.push((a, b));
+        }
+
+    }
 }
 
 /// Carves a corridor between two rooms by setting the tiles between them to be floor tiles
@@ -161,7 +186,8 @@ pub fn generate_map(width: u32, height: u32) -> Map {
         carve_room(&mut map, room);
     }
 
-    let links = link_rooms(&rooms);
+    let mut links = link_rooms(&rooms);
+    extra_links(&rooms, &mut links, &mut rng);
 
     let width_dist = WeightedIndex::new(CORRIDOR_WIDTH_WEIGHTS).unwrap();
 
