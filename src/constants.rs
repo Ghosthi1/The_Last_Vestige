@@ -27,6 +27,8 @@ pub const COLONIST_DAMAGE: f32 = 20.0;
 pub const ROOM_ATTEMPTS: u32 = 20;
 pub const ROOM_MIN_SIZE: u32 = 5;
 pub const ROOM_MAX_SIZE: u32 = 15;
+pub const CORRIDOR_WIDTH: [u32; 3] = [1,3,5];
+pub const CORRIDOR_WIDTH_WEIGHTS: [u32; 3] = [2,5,1];
 // endregion Map Generation //
 
 // region Camera //

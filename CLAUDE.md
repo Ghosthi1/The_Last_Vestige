@@ -176,7 +176,7 @@ src/
   map/
     mod.rs         # Declares submodules, re-exports Map, TileData, TileType, MapRendererPlugin
     map.rs         # TileType, TileData, Map struct and constructor — no generation logic; cursor_to_grid(camera, camera_transform, cursor_pos, map) shared utility
-    map_gen.rs     # Room struct (private) with overlaps; carve_room; generate_map — fills the map with wall, places random non-overlapping rooms, then carves them
+    map_gen.rs     # Room struct (private) with overlaps, centre, distance_to; carve_room; link_rooms; carve_corridor; generate_map — fills the map with wall, places random non-overlapping rooms, carves them, then links them with corridors
     map_renderer.rs # Spawns and manages bevy_ecs_tilemap entities from Map resource
   ai/
     mod.rs         # Declares submodules
@@ -399,14 +399,17 @@ All current art is placeholder (see [Art](#art-decided)).
 
 ### Map Generation
 
-- **Status: in progress** — this is the start of the generator in [Procedural generation](#procedural-generation). `generate_map` fills the whole map with `TileType::Wall`, places one hardcoded start room plus random non-overlapping rooms in a `Vec<Room>`, then carves them all. Rooms aren't connected yet, so colonists can't leave the start room. Linking rooms is the next stage (see below)
+- **Status: in progress** — this is the start of the generator in [Procedural generation](#procedural-generation). `generate_map` fills the whole map with `TileType::Wall`, places one hardcoded start room plus random non-overlapping rooms in a `Vec<Room>`, carves them all, then links them with corridors so every room is reachable. Width is a hardcoded `3` for now; random widths, extra links and dead ends are next (see below)
 - **Wall first, then carve** — every tile starts as wall and generation only opens up floor. Each tile still gets a `floor_variant` during the fill, so carved tiles get their random floor look without another roll
 - **`Room` struct** — private to `map/map_gen.rs`; `pos: (u32, u32)` is the bottom-left corner, plus `width: u32` and `height: u32`. `pos` is a tuple to match `GridPosition`, `Path` and `find_path`. Rooms are kept as data because overlap checks, doors and room types all need them after carving
 - **`carve_room(map: &mut Map, room: &Room)`** — sets every tile in the rectangle to `TileType::Floor`. It borrows the `Room` so rooms can live in a `Vec<Room>` afterwards. `y` is the outer loop and `x` the inner one, matching the `x + y * width` layout so memory is walked in order
 - **Hardcoded start room** — `pos: (21, 21)`, 19×19, first entry in `rooms`. It has to cover the colonists' hardcoded spawns, `(30, 30)` and `(35, 35)`, or they start inside wall. Being first means every random room is checked against it
 - **Random placement** — `generate_map` loops `ROOM_ATTEMPTS` times, rolling a size between `ROOM_MIN_SIZE` and `ROOM_MAX_SIZE` (`constants.rs`, currently `5`–`15`) and a position from `1` to `map.width - room_width - 1` (same for height), which keeps a one-tile wall border around the map. A fixed attempt count always finishes, unlike "loop until N rooms". `random_range` needs `use rand::RngExt;` in rand 0.10
 - **`Room::overlaps(&self, other: &Room) -> bool`** — rectangle overlap test using `<=`/`>=`, so touching rooms count as overlapping and at least one wall tile stays between rooms. Written with addition so the `u32`s can't underflow. A rejected room is skipped with `continue` and uses up its attempt
-- **Next step: link rooms** — give `Room` a centre point, link each room to its nearest neighbours into a tree, then carve each link as a corridor. The maze version (`carve_corridor`, odd room sizes and positions) was removed when the design changed, so rooms no longer need odd alignment.
+- **`Room::centre` / `Room::distance_to`** — `centre` is the tile at the room's middle, and corridors run between centres, so they always reach floor. `distance_to` is the Manhattan distance between centres in `u32`, which is the exact length of an L-shaped corridor, needs no square root, and can be compared with `Ord`
+- **`link_rooms(rooms: &[Room]) -> Vec<(usize, usize)>`** — Prim's algorithm: starting from room 0, each pass finds the closest connected/unconnected pair, pushes it as a link and marks the new room connected. This gives a tree with `rooms.len() - 1` links, each a pair of indices into `rooms`. It rescans every pair each pass, so cost grows with the cube of the room count; fine now, but revisit for thousands of rooms
+- **`carve_corridor(map, from, to, width, rng)`** — picks one of the two possible corners at random, then carves an L as two temporary `Room`s through `carve_room`. Each leg is extended by `width / 2` at both ends, so the outer corner has no notch. Widths should be odd, or the corridor comes out a tile short and off-centre. With `ROOM_MIN_SIZE = 5`, centres stay at least 3 tiles from the edge, so widths up to 5 can't reach the outer wall; a width above `ROOM_MIN_SIZE` would need clamping
+- **Next steps:** random widths per link, extra links for loops, dead-end stubs. The earlier maze version and odd room alignment were removed when the design changed.
 
 ### HUD / UI
 
