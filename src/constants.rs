@@ -23,9 +23,15 @@ pub const COLONIST_RANGE: f32 = 1.5 * TILE_SIZE;
 pub const COLONIST_DAMAGE: f32 = 20.0;
 // endregion Colonists //
 
+// region Map Generation //
+pub const ROOM_ATTEMPTS: u32 = 20;
+pub const ROOM_MIN_SIZE: u32 = 5;
+pub const ROOM_MAX_SIZE: u32 = 15;
+// endregion Map Generation //
+
 // region Camera //
 pub const CAMERA_WASD_SPEED: f32 = TILE_SIZE * 8.0;
 pub const CAMERA_MAX_ZOOM: f32 = 0.3;
-pub const CAMERA_MIN_ZOOM: f32 = 3.0;
+pub const CAMERA_MIN_ZOOM: f32 = 10.0;
 pub const CAMERA_ZOOM_SPEED: f32 = 0.1;
 // endregion Camera //
