@@ -40,14 +40,11 @@ fn spawn_enemy(mut commands: Commands, map: Res<Map>, asset_server: Res<AssetSer
             Speed(ENEMY_SPEED),
             Sprite {
                 image: texture.clone(),
-                custom_size: Some(Vec2::splat(TILE_SIZE)),
+                custom_size: Some(Vec2::splat(TILE_SIZE.x)),
                 ..default()
             },
-            Transform::from_xyz(
-                // offset by half map size to match the centred tilemap origin
-                x as f32 * TILE_SIZE - map.width as f32 * TILE_SIZE / 2.0,
-                y as f32 * TILE_SIZE - map.height as f32 * TILE_SIZE / 2.0,
-                1.0
+            Transform::from_translation(
+                map.grid_to_world(x, y).extend(0.0)
             ),
             Attacker::new(ENEMY_DAMAGE, ENEMY_RANGE, Timer::from_seconds(1.0, TimerMode::Repeating))
         ));

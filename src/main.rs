@@ -15,7 +15,7 @@ mod debugs;
 use bevy::prelude::*;
 use bevy_ecs_tilemap::TilemapPlugin;
 use crate::colonists::CharacterPlugin;
-use crate::constants::{MAP_HEIGHT, MAP_WIDTH, TILE_SIZE};
+use crate::constants::{MAP_HEIGHT, MAP_WIDTH};
 use crate::ai::{AiPlugin,FlowFields};
 use crate::buildings::BuildingPlugin;
 use crate::enemys::EnemyPlugin;
@@ -35,7 +35,6 @@ use crate::debugs::DebugPlugin;
 fn main() {
     App::new()
         .insert_resource(map::map_gen::generate_map(MAP_WIDTH, MAP_HEIGHT))
-        .insert_resource(map::MapOffset { offset: Vec2::new(-( MAP_WIDTH as f32 * TILE_SIZE/2.0), -(MAP_HEIGHT as f32* TILE_SIZE/2.0)) })
         .insert_resource(FlowFields::default())
         .add_plugins((DefaultPlugins.set(ImagePlugin::default_nearest()), TilemapPlugin))
         .add_plugins((EnemySpawnerPlugin, ColonistSpawnerPlugin, map::MapRendererPlugin, CharacterPlugin,

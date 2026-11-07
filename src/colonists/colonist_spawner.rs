@@ -21,15 +21,12 @@ fn spawn_colonist(mut commands: Commands, map: Res<Map>, knight_animation: Res<K
         Speed(COLONIST_SPEED),
         Sprite {
             image: knight_animation.idle.clone(),
-            custom_size: Some(Vec2::splat(TILE_SIZE)),
+            custom_size: Some(Vec2::splat(TILE_SIZE.x)),
             texture_atlas: Some(TextureAtlas { layout: knight_animation.layout_4x2.clone(), index: 0 }),
             ..default()
         },
-        Transform::from_xyz(
-            // offset by half map size to match the centred tilemap origin
-            30.0 * TILE_SIZE + TILE_SIZE / 2.0 - map.width as f32 * TILE_SIZE / 2.0,
-            30.0 * TILE_SIZE + TILE_SIZE / 2.0 - map.height as f32 * TILE_SIZE / 2.0,
-            1.0
+        Transform::from_translation(
+            map.grid_to_world(30, 30).extend(1.0)
         ),
         Path(VecDeque::new()),
         Attacker::new(COLONIST_DAMAGE, COLONIST_RANGE, Timer::from_seconds(1.0, TimerMode::Repeating)),
@@ -49,15 +46,12 @@ fn spawn_colonist(mut commands: Commands, map: Res<Map>, knight_animation: Res<K
         Speed(COLONIST_SPEED),
         Sprite {
             image: knight_animation.idle.clone(),
-            custom_size: Some(Vec2::splat(TILE_SIZE)),
+            custom_size: Some(Vec2::splat(TILE_SIZE.x)),
             texture_atlas: Some(TextureAtlas { layout: knight_animation.layout_4x2.clone(), index: 0 }),
             ..default()
         },
-        Transform::from_xyz(
-            // offset by half map size to match the centred tilemap origin
-            35.0 * TILE_SIZE + TILE_SIZE / 2.0 - map.width as f32 * TILE_SIZE / 2.0,
-            35.0 * TILE_SIZE + TILE_SIZE / 2.0 - map.height as f32 * TILE_SIZE / 2.0,
-            1.0
+        Transform::from_translation(
+            map.grid_to_world(35, 35).extend(1.0)
         ),
         Path(VecDeque::new()),
         Attacker::new(COLONIST_DAMAGE, COLONIST_RANGE, Timer::from_seconds(1.0, TimerMode::Repeating)),

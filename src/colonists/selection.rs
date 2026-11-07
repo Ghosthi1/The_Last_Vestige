@@ -69,7 +69,7 @@ pub fn dragselection (mouse: Res<ButtonInput<MouseButton>>, window_pos: Query<&W
                         commands.entity(e).remove::<Selected>();
                     }
 
-                    if let Some(winner) = closest_entity && minimum_distance < TILE_SIZE * 0.6 {
+                    if let Some(winner) = closest_entity && minimum_distance < TILE_SIZE.x * 0.6 {
                         commands.entity(winner).insert(Selected);
                     }
                 }
@@ -99,6 +99,6 @@ pub fn dragselection (mouse: Res<ButtonInput<MouseButton>>, window_pos: Query<&W
 /// Draws a circle around the selected targets
 pub fn draw_selection_indicator(selected: Query<&Transform, With<Selected>>, mut gizmos: Gizmos){
     for selected in selected.iter(){
-        gizmos.circle_2d( Isometry2d::from_translation(selected.translation.xy()), TILE_SIZE * 0.5, Color::WHITE);
+        gizmos.circle_2d( Isometry2d::from_translation(selected.translation.xy()), TILE_SIZE.x * 0.5, Color::WHITE);
     }
 }

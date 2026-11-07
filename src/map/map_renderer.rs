@@ -34,15 +34,15 @@ pub fn spawn_tilemap(map: Res<Map>,asset_server: Res<AssetServer>, mut command:C
 
     // Completes the tilemap entity with rendering config
     command.entity(tilemap_entity).insert(TilemapBundle {
-        grid_size: TilemapGridSize { x: TILE_SIZE, y: TILE_SIZE },
+        grid_size: TilemapGridSize { x: TILE_SIZE.x, y: TILE_SIZE.y },
         map_type: TilemapType::Square,
         size: map_size,
         storage: tile_storage,
         texture: TilemapTexture::Single(texture_handle),
-        tile_size: TilemapTileSize {x:TILE_SIZE, y:TILE_SIZE},
+        tile_size: TilemapTileSize {x:TILE_SIZE.x, y:TILE_SIZE.y},
         transform: Transform::from_xyz(
-            -(map.width as f32 * TILE_SIZE) / 2.0 + TILE_SIZE / 2.0,
-            -(map.height as f32 * TILE_SIZE) / 2.0 + TILE_SIZE / 2.0,
+            -(map.width as f32 * TILE_SIZE.x) / 2.0 + TILE_SIZE.x / 2.0,
+            -(map.height as f32 * TILE_SIZE.y) / 2.0 + TILE_SIZE.y / 2.0,
             0.0 ),
         ..Default::default()
     });

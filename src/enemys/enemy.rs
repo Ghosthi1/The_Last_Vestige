@@ -1,6 +1,6 @@
 ﻿use bevy::prelude::*;
 use crate::map::{Map};
-use crate::constants::{TILE_SIZE, ENEMY_STOP_RADIUS, ENEMY_SEPARATION_STRENGTH, OFFSETS, MAP_WIDTH, MAP_HEIGHT};
+use crate::constants::{TILE_SIZE, ENEMY_STOP_RADIUS, ENEMY_SEPARATION_STRENGTH, OFFSETS};
 use crate::colonists::{Colonist};
 use crate::ai::FlowFields;
 use crate::ai::ai_plugins::rebuild_colonist_flow_field;
@@ -22,9 +22,6 @@ impl Plugin for EnemyPlugin {
 fn move_enemy (mut query: Query<(&mut GridPosition,  &mut Transform, &Speed), (With<Enemy>,Without<Colonist>)>,colonist: Query<&Transform,
     (With<Colonist>, Without<Enemy>)>, flow_fields: Res<FlowFields>, map: Res<Map>, time: Res<Time>) {
 
-    let x_offset = map.width as f32 * TILE_SIZE/2.0;
-    let y_offset = map.height as f32 * TILE_SIZE/2.0;
-
     let colonist_positions: Vec<Vec2> = colonist.iter().map(|t| t.translation.truncate()).collect();
 
     for (mut grid_pos, mut transform, speed) in query.iter_mut() {
@@ -37,7 +34,7 @@ fn move_enemy (mut query: Query<(&mut GridPosition,  &mut Transform, &Speed), (W
 
                 let velocity = Vec2::new(direction.0 as f32, direction.1 as f32).normalize() * speed.0 * time.delta_secs();
 
-                if colonist_positions.iter().any(|pos| transform.translation.truncate().distance_squared(*pos) < (TILE_SIZE * ENEMY_STOP_RADIUS).powi(2)) { continue; }
+                if colonist_positions.iter().any(|pos| transform.translation.truncate().distance_squared(*pos) < (TILE_SIZE.x * ENEMY_STOP_RADIUS).powi(2)) { continue; }
 
                 if tile_at( transform.translation.truncate() + Vec2::new(velocity.x, 0.0), &map).is_some() {
                     transform.translation.x += velocity.x
@@ -45,8 +42,9 @@ fn move_enemy (mut query: Query<(&mut GridPosition,  &mut Transform, &Speed), (W
                 if tile_at( transform.translation.truncate() + Vec2::new(0.0, velocity.y), &map).is_some() {
                     transform.translation.y += velocity.y;
                 }
-
-                grid_pos.0 = (((transform.translation.x + x_offset) / TILE_SIZE).floor() as u32,  ((transform.translation.y + y_offset) / TILE_SIZE).floor() as u32);
+                if let Some((tx, ty)) = map.world_to_grid(transform.translation.truncate()) {
+                    grid_pos.0 = (tx, ty);
+                }
             }
             None => {
                 for offset in OFFSETS{
@@ -64,7 +62,9 @@ fn move_enemy (mut query: Query<(&mut GridPosition,  &mut Transform, &Speed), (W
                             transform.translation.y += velocity.y;
                         }
 
-                        grid_pos.0 = (((transform.translation.x + x_offset) / TILE_SIZE).floor() as u32,  ((transform.translation.y + y_offset) / TILE_SIZE).floor() as u32);
+                        if let Some((tx, ty)) = map.world_to_grid(transform.translation.truncate()) {
+                            grid_pos.0 = (tx, ty);
+                        }
                         break;
                     }
 
@@ -76,11 +76,7 @@ fn move_enemy (mut query: Query<(&mut GridPosition,  &mut Transform, &Speed), (W
 
 /// Converts World space into tile coordinates, Returning none if Impassable
 fn tile_at(world_pos: Vec2, map: &Map) -> Option<(u32, u32)>{
-    let raw_x = ((world_pos.x + (MAP_WIDTH as f32 * TILE_SIZE / 2.0)) / TILE_SIZE ).floor();
-    let raw_y = ((world_pos.y + (MAP_HEIGHT as f32 * TILE_SIZE / 2.0)) / TILE_SIZE).floor();
-    if raw_y < 0.0 ||raw_x < 0.0 || raw_y >= MAP_HEIGHT as f32|| raw_x >= MAP_WIDTH as f32{return None;}
-    let tx = raw_x as u32;
-    let ty = raw_y as u32;
+    let Some((tx, ty)) = map.world_to_grid(world_pos) else { return None };
     if !map.get(tx,ty).tile_type.is_passable() { return None; };
     Some((tx, ty))
 }
@@ -96,10 +92,10 @@ fn separate_enemies(mut query: Query<&mut Transform, With<Enemy>> ,time: Res<Tim
             let diff = positions[i] - positions[j];
             let dist = diff.length();
 
-            if dist == 0.0 || dist > TILE_SIZE {continue;}
+            if dist == 0.0 || dist > TILE_SIZE.x {continue;}
 
-            forces[i] += (1.0 - dist / TILE_SIZE) * diff / dist;
-            forces[j] -= (1.0 - dist / TILE_SIZE) * diff / dist;
+            forces[i] += (1.0 - dist / TILE_SIZE.x) * diff / dist;
+            forces[j] -= (1.0 - dist / TILE_SIZE.x) * diff / dist;
 
         }
     }

@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 use crate::map::Map;
 use crate::ai::a_star::find_path;
-use crate::constants::{ENEMY_SEPARATION_STRENGTH, MAP_HEIGHT, MAP_WIDTH, OFFSETS, TILE_SIZE};
+use crate::constants::{ENEMY_SEPARATION_STRENGTH, OFFSETS, TILE_SIZE};
 use crate::components::movement::{GridPosition, Path, Speed};
 use crate::map::cursor_to_grid;
 use std::collections::HashSet;
@@ -25,17 +25,10 @@ fn move_character (time: Res<Time>,map: Res<Map>, mut query: Query<(&mut GridPos
 
     let mut occupied: HashSet<(u32, u32)> = query.iter().map(|(grid_pos, _,_,_)|  grid_pos.0).collect();
 
-    let x_offset = map.width as f32 * TILE_SIZE/2.0;
-    let y_offset = map.height as f32 * TILE_SIZE/2.0;
-
     for (mut grid_pos, mut path, mut transform, speed) in query.iter_mut() {
         let Some(next) = path.0.front() else { continue };
 
-        let target =   Vec3::new(
-            next.0 as f32 * TILE_SIZE + TILE_SIZE / 2.0 - x_offset,
-            next.1 as f32 * TILE_SIZE + TILE_SIZE / 2.0 - y_offset,
-            1.0
-        );
+        let target = map.grid_to_world(next.0, next.1).extend(1.0);
 
         transform.translation = transform.translation.move_towards(target, speed.0 * time.delta_secs());
 
@@ -114,11 +107,7 @@ fn move_to_click(mouse: Res<ButtonInput<MouseButton>>, window: Query<&Window, Wi
 
 /// Converts World space into tile coordinates, Returning none if Impassable
 fn tile_at(world_pos: Vec2, map: &Map) -> Option<(u32, u32)>{
-    let raw_x = ((world_pos.x + (MAP_WIDTH as f32 * TILE_SIZE / 2.0)) / TILE_SIZE ).floor();
-    let raw_y = ((world_pos.y + (MAP_HEIGHT as f32 * TILE_SIZE / 2.0)) / TILE_SIZE).floor();
-    if raw_y < 0.0 ||raw_x < 0.0 || raw_y >= MAP_HEIGHT as f32|| raw_x >= MAP_WIDTH as f32{return None;}
-    let tx = raw_x as u32;
-    let ty = raw_y as u32;
+    let Some((tx, ty)) = map.world_to_grid(world_pos) else { return None };
     if !map.get(tx,ty).tile_type.is_passable() { return None; };
     Some((tx, ty))
 }
@@ -133,10 +122,10 @@ fn separate_colonists(mut query: Query<&mut Transform, With<Colonist>> ,time: Re
             let diff = positions[i] - positions[j];
             let dist = diff.length();
 
-            if dist == 0.0 || dist > TILE_SIZE {continue;}
+            if dist == 0.0 || dist > TILE_SIZE.x {continue;}
 
-            forces[i] += (1.0 - dist / TILE_SIZE) * diff / dist;
-            forces[j] -= (1.0 - dist / TILE_SIZE) * diff / dist;
+            forces[i] += (1.0 - dist / TILE_SIZE.x) * diff / dist;
+            forces[j] -= (1.0 - dist / TILE_SIZE.x) * diff / dist;
 
         }
     }
