@@ -1,22 +1,29 @@
-﻿use bevy::prelude::*;
-use bevy::app::{App, Plugin, Update};
-use bevy::prelude::{Query, Res};
+﻿use crate::ai::FlowFields;
+use crate::colonists::Colonist;
+use crate::components::movement::GridPosition;
 use crate::map::Map;
-use crate::ai::{FlowFields};
-use crate::colonists::{Colonist};
-use crate::components::movement::{GridPosition};
+use bevy::app::{App, Plugin, Update};
+use bevy::prelude::*;
+use bevy::prelude::{Query, Res};
 
 pub struct AiPlugin;
 impl Plugin for AiPlugin {
-    fn build(&self, app: &mut App ) {
+    fn build(&self, app: &mut App) {
         app.add_systems(Update, rebuild_colonist_flow_field);
     }
 }
 /// Triggered by a colonists position changing, collects all colonists positions rebuilds the colonist flow field
-pub fn rebuild_colonist_flow_field(mut flow_fields: ResMut<FlowFields>, map: Res<Map>, colonist_moved: Query<&GridPosition, (With<Colonist>, Changed<GridPosition>)>,
-                               colonist_pos: Query<&GridPosition, With<Colonist>>, mut positions: Local<Vec<(u32, u32)>>,
-                                mut removed_colonists: RemovedComponents<Colonist>) {
-    if colonist_moved.is_empty() && removed_colonists.read().count() == 0 { return } // no colonist moved
+pub fn rebuild_colonist_flow_field(
+    mut flow_fields: ResMut<FlowFields>,
+    map: Res<Map>,
+    colonist_moved: Query<&GridPosition, (With<Colonist>, Changed<GridPosition>)>,
+    colonist_pos: Query<&GridPosition, With<Colonist>>,
+    mut positions: Local<Vec<(u32, u32)>>,
+    mut removed_colonists: RemovedComponents<Colonist>,
+) {
+    if colonist_moved.is_empty() && removed_colonists.read().count() == 0 {
+        return;
+    } // no colonist moved
     positions.clear();
     for grid_pos in colonist_pos.iter() {
         positions.push(grid_pos.0);
