@@ -9,7 +9,7 @@ pub const OFFSETS: [(i32, i32); 8] = [(-1, -1), (0, -1), (1, -1), (-1, 0), (1, 0
 
 // region ENEMIES //
 pub const ENEMY_HEALTH: f32 = 20.0;
-pub const ENEMY_SPEED: f32 = 140.0;
+pub const ENEMY_SPEED: f32 = 300.0;
 pub const ENEMY_STOP_RADIUS: f32 = 0.7;
 pub const ENEMY_SEPARATION_STRENGTH: f32 = 10.0;
 pub const ENEMY_RANGE: f32 = 1.2 * TILE_SIZE.x;

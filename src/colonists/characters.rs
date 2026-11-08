@@ -28,7 +28,7 @@ fn move_character (time: Res<Time>,map: Res<Map>, mut query: Query<(&mut GridPos
     for (mut grid_pos, mut path, mut transform, speed) in query.iter_mut() {
         let Some(next) = path.0.front() else { continue };
 
-        let target = map.grid_to_world(next.0, next.1).extend(1.0);
+        let target = map.grid_to_world(next.0, next.1).extend(transform.translation.z);
 
         transform.translation = transform.translation.move_towards(target, speed.0 * time.delta_secs());
 
@@ -42,7 +42,7 @@ fn move_character (time: Res<Time>,map: Res<Map>, mut query: Query<(&mut GridPos
                         continue;
                     }
                     neighbor_u32 = (neighbor.0 as u32 , neighbor.1 as u32);
-                    if neighbor_u32.0 >= map.width || neighbor_u32.1 >= map.height{
+                    if neighbor_u32.0 >= map.width      || neighbor_u32.1 >= map.height{
                         continue
                     }
                     if map.get(neighbor_u32.0, neighbor_u32.1).tile_type.is_passable() && !occupied.contains(&neighbor_u32){

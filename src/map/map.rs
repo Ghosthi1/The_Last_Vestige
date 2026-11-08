@@ -1,4 +1,4 @@
-﻿use crate::constants::TILE_SIZE;
+﻿use crate::constants::{OFFSETS, TILE_SIZE};
 use bevy::prelude::*;
 
 /// Represents what a tile fundamentally is. Determines how it looks and how it interacts
@@ -102,12 +102,24 @@ impl Map {
         let goal_y = raw_y as u32;
         Some((goal_x, goal_y))
     }
-}
-
-/// holds the world space offset
-#[derive(Resource)]
-pub struct MapOffset {
-    pub offset: Vec2,
+    /// Checks if a wall tile is an edge wall, meaning it has at least one non-wall neighbor
+    pub fn is_edge_wall(&self, x: u32, y: u32) -> bool {
+        if !matches!(self.get(x, y).tile_type, TileType::Wall) {
+            return false;
+        }
+        for (dx, dy) in OFFSETS.iter() {
+            let nx = x as i32 + dx;
+            let ny = y as i32 + dy;
+            if nx < 0 || ny < 0 || nx >= self.width as i32 || ny >= self.height as i32 {
+                continue;
+            }
+            let neighbor_tile = self.get(nx as u32, ny as u32);
+            if !matches!(neighbor_tile.tile_type, TileType::Wall) {
+                return true;
+            }
+        }
+        false
+    }
 }
 
 /// Converts a screen-space cursor pos to a map grid coordinate returning None if the cursor is outside the map bounds or the projection fails.

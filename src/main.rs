@@ -20,7 +20,7 @@ use crate::ai::{AiPlugin,FlowFields};
 use crate::buildings::BuildingPlugin;
 use crate::enemys::EnemyPlugin;
 use crate::enemys::EnemySpawnerPlugin;
-use crate::systems::AmbientPlugin;
+use crate::systems::{AmbientPlugin, YSortPlugin};
 use crate::systems::CameraPlugin;
 use crate::colonists::ColonistSpawnerPlugin;
 use crate::colonists::SelectionPlugin;
@@ -40,7 +40,7 @@ fn main() {
         .add_plugins((EnemySpawnerPlugin, ColonistSpawnerPlugin, map::MapRendererPlugin, CharacterPlugin,
                       AiPlugin, EnemyPlugin, CameraPlugin, BuildingPlugin, AmbientPlugin, SelectionPlugin, CombatPlugin, DeathPlugin,
                       UiPlugin,LifeSupportPlugin, AnimationPlugin))
-        .add_plugins((ColonistAnimationPlugin))
+        .add_plugins((ColonistAnimationPlugin, YSortPlugin))
 
         // Debug //
         .add_plugins(DebugPlugin)

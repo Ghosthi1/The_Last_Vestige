@@ -5,6 +5,7 @@ use crate::constants::{ENEMY_COUNT, ENEMY_DAMAGE, ENEMY_HEALTH, ENEMY_RANGE, ENE
 use crate::enemys::Enemy;
 use crate::map::Map;
 use crate::components::movement::{GridPosition, Speed};
+use crate::systems::YSort;
 
 pub struct EnemySpawnerPlugin;
 impl Plugin for EnemySpawnerPlugin {
@@ -46,7 +47,8 @@ fn spawn_enemy(mut commands: Commands, map: Res<Map>, asset_server: Res<AssetSer
             Transform::from_translation(
                 map.grid_to_world(x, y).extend(0.0)
             ),
-            Attacker::new(ENEMY_DAMAGE, ENEMY_RANGE, Timer::from_seconds(1.0, TimerMode::Repeating))
+            Attacker::new(ENEMY_DAMAGE, ENEMY_RANGE, Timer::from_seconds(1.0, TimerMode::Repeating)),
+            YSort,
         ));
 
         spawned += 1;
