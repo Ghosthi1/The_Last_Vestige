@@ -12,7 +12,7 @@ pub struct FlowFields {
     pub walls: FlowField,
 }
 impl Default for FlowFields {
-    fn default() -> FlowFields {
+    fn default() -> FlowFields {a
         FlowFields {
             colonists: FlowField::new(MAP_WIDTH, MAP_HEIGHT),
             structures: FlowField::new(MAP_WIDTH, MAP_HEIGHT),
