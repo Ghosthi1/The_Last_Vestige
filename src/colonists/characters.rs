@@ -15,7 +15,7 @@ pub struct Colonist;
 /// Manages colonists spawning and movement
 pub struct CharacterPlugin;
 impl Plugin for CharacterPlugin {
-    fn build(&self, app: &mut App) {aa
+    fn build(&self, app: &mut App) {
         app.add_systems(Update,  (separate_colonists.before(move_character), move_to_click.before(move_character), move_character));
     }
 }
