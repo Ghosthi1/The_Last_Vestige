@@ -147,7 +147,7 @@ pub fn generate_map(width: u32, height: u32) -> Map {
         height: 19,
     }];
 
-    let weights = [50u32, 10, 10, 1, 1, 10]; // weights for how often a tile gets chosen
+    let weights = [1u32, 10, 10, 1, 50, 10]; // weights for how often a tile gets chosen
     let dist = WeightedIndex::new(weights).unwrap();
     let mut rng = rand::rng();
 

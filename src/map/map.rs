@@ -1,6 +1,9 @@
 ﻿use crate::constants::{OFFSETS, TILE_SIZE};
 use bevy::prelude::*;
 
+pub(crate) const WALL_NEIGHBOURS:[(i32,i32,u32); 4] = [(0, 1, 1), (1, 0, 2), (0, -1, 4), (-1, 0, 8)];
+const WALL_SHEET_START: u32 = 6;
+
 /// Represents what a tile fundamentally is. Determines how it looks and how it interacts
 #[derive(Default, Clone)]
 pub enum TileType {
@@ -44,9 +47,9 @@ impl TileData {
             TileType::Wall => 6,
             TileType::Door { is_open } => {
                 if is_open {
-                    13
+                    1
                 } else {
-                    12
+                    1
                 }
             }
         }
@@ -102,25 +105,32 @@ impl Map {
         let goal_y = raw_y as u32;
         Some((goal_x, goal_y))
     }
-    /// Checks if a wall tile is an edge wall, meaning it has at least one non-wall neighbor
-    pub fn is_edge_wall(&self, x: u32, y: u32) -> bool {
-        if !matches!(self.get(x, y).tile_type, TileType::Wall) {
-            return false;
+
+    pub fn tile_texture_index(&self, x: u32, y: u32) -> u32 {
+        let tile = self.get(x, y);
+        if !matches!(tile.tile_type, TileType::Wall) {
+            return tile.texture_index();
         }
-        for (dx, dy) in OFFSETS.iter() {
-            let nx = x as i32 + dx;
-            let ny = y as i32 + dy;
-            if nx < 0 || ny < 0 || nx >= self.width as i32 || ny >= self.height as i32 {
-                continue;
-            }
-            let neighbor_tile = self.get(nx as u32, ny as u32);
-            if !matches!(neighbor_tile.tile_type, TileType::Wall) {
-                return true;
+        let xi = x as i32;
+        let yi = y as i32;
+        let mut mask: u32 = 0;
+
+        for &(dx, dy, bit) in WALL_NEIGHBOURS.iter() {
+            if self.is_wall_at(xi + dx, yi + dy){
+                mask |= bit;
             }
         }
-        false
+        WALL_SHEET_START + mask
+    }
+
+    fn is_wall_at(&self, x: i32, y: i32) -> bool {
+        if x < 0 || y < 0 || x >= self.width as i32 || y >= self.height as i32 {
+            return true
+        }
+        matches!(self.get(x as u32, y as u32).tile_type, TileType::Wall)
     }
 }
+
 
 /// Converts a screen-space cursor pos to a map grid coordinate returning None if the cursor is outside the map bounds or the projection fails.
 pub fn cursor_to_grid(

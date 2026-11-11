@@ -1,7 +1,7 @@
 use bevy::math::Vec2;
 
 // region Map //
-pub const  TILE_SIZE: Vec2 = Vec2::new(128.0, 112.0);
+pub const  TILE_SIZE: Vec2 = Vec2::new(128.0, 128.0);
 pub const MAP_WIDTH: u32 = 100;
 pub const MAP_HEIGHT: u32 = 100;
 pub const OFFSETS: [(i32, i32); 8] = [(-1, -1), (0, -1), (1, -1), (-1, 0), (1, 0), (-1, 1), (0, 1), (1, 1)];

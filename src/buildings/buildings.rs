@@ -8,6 +8,7 @@ use crate::colonists::{Colonist};
 use crate::map::{Map, TileType};
 use crate::components::movement::{GridPosition, Path};
 use crate::map::cursor_to_grid;
+use crate::map::map::WALL_NEIGHBOURS;
 
 pub struct BuildingPlugin;
 impl Plugin for BuildingPlugin {
@@ -53,8 +54,18 @@ fn on_tile_change(mut events: MessageReader<TileChangedEvent>, map: Res<Map>, ti
 {
     let Ok(tile_storage) = tile_storage_query.single() else { return; };
     for event in events.read(){
+        for (dx,dy,_) in WALL_NEIGHBOURS{
+            let Some(nx) = event.x.checked_add_signed(dx) else {continue;};
+            let Some(ny) = event.y.checked_add_signed(dy) else {continue;};
+            if nx >= map.width || ny >= map.height {
+                continue
+            }
+            let Some(tile_pos) = tile_storage.get(&TilePos {x: nx, y: ny}) else { continue; };
+            let texture_index = map.tile_texture_index(nx, ny);
+            commands.entity(tile_pos).insert(TileTextureIndex(texture_index));
+        }
         let Some(tile_pos) = tile_storage.get(&TilePos {x: event.x, y: event.y}) else { continue; };
-        let texture_index = map.get(event.x, event.y).texture_index();
+        let texture_index = map.tile_texture_index(event.x, event.y);
         commands.entity(tile_pos).insert(TileTextureIndex(texture_index));
     }
 }
