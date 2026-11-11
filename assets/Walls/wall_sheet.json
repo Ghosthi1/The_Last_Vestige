@@ -1,0 +1,114 @@
+[
+  {
+    "name": "wall_0",
+    "x": 0,
+    "y": 0,
+    "width": 128,
+    "height": 128
+  },
+  {
+    "name": "wall_1",
+    "x": 128,
+    "y": 0,
+    "width": 128,
+    "height": 128
+  },
+  {
+    "name": "wall_2",
+    "x": 256,
+    "y": 0,
+    "width": 128,
+    "height": 128
+  },
+  {
+    "name": "wall_3",
+    "x": 384,
+    "y": 0,
+    "width": 128,
+    "height": 128
+  },
+  {
+    "name": "wall_4",
+    "x": 0,
+    "y": 128,
+    "width": 128,
+    "height": 128
+  },
+  {
+    "name": "wall_5",
+    "x": 128,
+    "y": 128,
+    "width": 128,
+    "height": 128
+  },
+  {
+    "name": "wall_6",
+    "x": 256,
+    "y": 128,
+    "width": 128,
+    "height": 128
+  },
+  {
+    "name": "wall_7",
+    "x": 384,
+    "y": 128,
+    "width": 128,
+    "height": 128
+  },
+  {
+    "name": "wall_8",
+    "x": 0,
+    "y": 256,
+    "width": 128,
+    "height": 128
+  },
+  {
+    "name": "wall_9",
+    "x": 128,
+    "y": 256,
+    "width": 128,
+    "height": 128
+  },
+  {
+    "name": "wall_10",
+    "x": 256,
+    "y": 256,
+    "width": 128,
+    "height": 128
+  },
+  {
+    "name": "wall_11",
+    "x": 384,
+    "y": 256,
+    "width": 128,
+    "height": 128
+  },
+  {
+    "name": "wall_12",
+    "x": 0,
+    "y": 384,
+    "width": 128,
+    "height": 128
+  },
+  {
+    "name": "wall_13",
+    "x": 128,
+    "y": 384,
+    "width": 128,
+    "height": 128
+  },
+  {
+    "name": "wall_14",
+    "x": 256,
+    "y": 384,
+    "width": 128,
+    "height": 128
+  },
+  {
+    "name": "wall_15",
+    "x": 384,
+    "y": 384,
+    "width": 128,
+    "height": 128
+  }
+]
